@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up CMake
+        uses: jwlawson/actions-setup-cmake@v1
+        with:
+          cmake-version: '3.18.0'
+
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential lcov gcovr
+
+      - name: Clean build and deps
+        run: |
+          rm -rf build/
+          rm -rf */build/
+          rm -rf */_deps/
+          rm -rf _deps/
+
+      - name: Ensure tests/test_cases directory exists (optional)
+        run: |
+          if [ ! -d tests/test_cases ]; then
+            mkdir -p tests/test_cases
+          fi
+
+      - name: Configure project (with coverage)
+        run: cmake -S . -B build -DENABLE_COVERAGE=ON
+
+      - name: Build project (with coverage)
+        run: cmake --build build
+
+      - name: Run tests
+        run: |
+          cd build
+          ctest --output-on-failure
+
+
+      - name: Build limitation tests
+        run: |
+          cd limitation
+          cmake .
+          make
+
+      - name: Run limitation tests and check for CONFIRMED message
+        run: |
+          cd limitation/sample_test
+          for exe in *; do
+            if [ -x "$exe" ]; then
+              echo "Running $exe"
+              output=$(../sample_test/$exe)
+              echo "$output"
+              if ! echo "$output" | grep -q "CONFIRMED"; then
+                echo "CONFIRMED message not found in $exe output"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Build sample_usage examples
+        run: |
+          cd sample_usage
+          cmake -S . -B build
+          cmake --build build
+
+      - name: Run sample usage and check if they pass or not
+        run: |
+          cd sample_usage
+          for exe in build/bin/*; do
+            if [ -x "$exe" ]; then
+              echo "Running $exe"
+              ./$exe
+              rc=$?
+              if [ $rc -ne 0 ]; then
+                echo "$exe did not return 0 (success), got $rc"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Run code coverage (gcovr_console)
+        run: |
+          cmake --build build --target gcovr_console
+          cat build/coverage_gcovr.txt || true

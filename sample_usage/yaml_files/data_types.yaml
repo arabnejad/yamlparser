@@ -1,0 +1,9 @@
+string_value: "Hello World"
+integer_value: 42
+float_value: 3.14159
+boolean_true: true
+boolean_false: false
+large_number: 1000000
+negative_number: -273
+zero_value: 0
+decimal_number: 123.456

@@ -1,0 +1,4 @@
+scientific: 1.23e-4
+large_scientific: 1.5E+10
+normal_decimal: 123.45
+integer: 42

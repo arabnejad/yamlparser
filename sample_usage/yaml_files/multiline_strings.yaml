@@ -1,0 +1,23 @@
+description: |
+  This is a literal block scalar.
+  It preserves line breaks exactly
+  as they appear in the source.
+
+  Empty lines are preserved too.
+
+folded_description: >
+  This is a folded block scalar.
+  It joins lines with spaces
+  making it suitable for
+  long paragraphs of text.
+
+inline_string: "This is a regular quoted string"
+unquoted_string: This is an unquoted string
+
+multiline_message: |
+  Welcome to our application!
+
+  Features:
+  - Easy configuration
+  - Flexible YAML parsing
+  - Great performance

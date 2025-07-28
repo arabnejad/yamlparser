@@ -1,0 +1,7 @@
+defaults: &defaults
+  timeout: 30
+  retries: 3
+
+service:
+  <<: *defaults  # This inline comment breaks merge functionality
+  name: service1

@@ -1,0 +1,25 @@
+fruits:
+  - apple
+  - banana
+  - orange
+  - grape
+
+numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+mixed_array:
+  - 42
+  - "hello"
+  - true
+  - 3.14
+  - "world"
+
+users:
+  - name: "John Doe"
+    age: 30
+    active: true
+  - name: "Jane Smith"
+    age: 25
+    active: false
+  - name: "Bob Wilson"
+    age: 35
+    active: true

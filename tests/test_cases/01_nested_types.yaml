@@ -1,0 +1,27 @@
+config:
+  server:
+    host: localhost
+    ports: [8080, 8081, 8082]
+    enabled: true
+    timeout: 30.5
+  databases:
+    - name: main
+      type: postgresql
+      settings: &db_settings
+        max_connections: 100
+        timeout: 5.0
+        retry: true
+    - name: replica
+      type: postgresql
+      settings:
+        <<: *db_settings
+        max_connections: 50
+  features:
+    logging:
+      level: INFO
+      formats: ["json", "text"]
+    cache:
+      enabled: true
+      max_size: 1024
+      string_items: ["item1", "item2", "item3"]
+      number_items: [42, 55, 67]

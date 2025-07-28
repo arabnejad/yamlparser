@@ -1,0 +1,32 @@
+application:
+  name: "MyApp"
+  version: "2.1.0"
+
+server:
+  port: 8080
+  host: "0.0.0.0"
+  threads: 4
+
+database:
+  driver: "postgresql"
+  host: "localhost"
+  port: 5432
+  database: "myapp"
+  username: "user"
+  password: "pass"
+
+logging:
+  level: "info"
+  file: "/var/log/myapp.log"
+  max_size: "10MB"
+
+features:
+  authentication: true
+  caching: true
+  rate_limiting: false
+
+cache:
+  type: "redis"
+  host: "localhost"
+  port: 6379
+  ttl: 3600

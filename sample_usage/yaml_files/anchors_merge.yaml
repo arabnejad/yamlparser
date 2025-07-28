@@ -1,0 +1,20 @@
+defaults: &default_settings
+  timeout: 30
+  retries: 3
+  log_level: "info"
+
+development:
+  <<: *default_settings
+  database_url: "localhost:5432"
+  debug: true
+
+production:
+  <<: *default_settings
+  database_url: "prod-db.example.com:5432"
+  timeout: 60
+  debug: false
+
+staging:
+  <<: *default_settings
+  database_url: "staging-db.example.com:5432"
+  retries: 5

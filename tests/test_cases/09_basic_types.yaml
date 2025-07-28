@@ -1,0 +1,34 @@
+strings:
+  unquoted: Simple unquoted string
+  double_quoted: "String with quotes inside"
+  single_quoted: 'String with quotes inside'
+  empty_string: ""
+
+numbers:
+  integers:
+    positive: 42
+    negative: -17
+    zero: 0
+  floats:
+    positive: 3.14159
+    negative: -0.001
+    zero: 0.0
+
+booleans:
+  true_values:
+    - true
+    - True
+    - TRUE
+  false_values:
+    - false
+    - False
+    - FALSE
+
+null_values:
+  explicit_null: null
+
+dates:
+  simple_date: 2025-07-26
+  datetime: 2025-07-26T15:30:00
+  with_timezone: 2025-07-26T15:30:00+01:00
+  iso8601: 2025-07-26T15:30:00.000Z

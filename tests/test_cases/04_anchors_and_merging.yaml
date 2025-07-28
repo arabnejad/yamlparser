@@ -1,0 +1,38 @@
+defaults: &defaults
+  timeout: 30
+  retries: 3
+  logging: &logging_settings
+    enabled: true
+    level: INFO
+    format: json
+
+service1: &service_template
+  <<: *defaults
+  name: service1
+  logging:
+    <<: *logging_settings
+    level: DEBUG
+
+service2:
+  <<: *service_template
+  name: service2
+  timeout: 60
+
+shared_config: &shared
+  database:
+    host: localhost
+    port: 5432
+  cache:
+    enabled: true
+
+development:
+  <<: *shared
+  environment: dev
+  debug: true
+
+production:
+  <<: *shared
+  environment: prod
+  debug: false
+  database:
+    host: prod-db.example.com

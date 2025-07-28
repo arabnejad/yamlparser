@@ -1,0 +1,30 @@
+description:
+  short: Single line text
+  folded: >
+    This is a longer piece of text
+    that should be folded into
+    a single line with spaces.
+  literal: |
+    This text will keep its
+    exact formatting including
+    line breaks.
+  folded_keep: >+
+    This text is folded
+    but keeps trailing
+
+    blank lines.
+
+  literal_strip: |-
+    This text is literal
+    but strips trailing
+    newlines
+documentation: |
+  # API Documentation
+  ## Endpoints
+    - /api/v1/users
+    - /api/v1/posts
+notes: >
+  First line
+  Second line
+    Indented line
+  Final line

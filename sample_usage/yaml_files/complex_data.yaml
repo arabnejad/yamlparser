@@ -1,0 +1,34 @@
+users:
+  - id: 1
+    name: "Alice Johnson"
+    email: "alice@example.com"
+    roles: ["admin", "user"]
+    active: true
+    last_login: "2025-07-25T10:30:00Z"
+
+  - id: 2
+    name: "Bob Smith"
+    email: "bob@example.com"
+    roles: ["user"]
+    active: true
+    last_login: "2025-07-24T15:45:00Z"
+
+  - id: 3
+    name: "Carol Davis"
+    email: "carol@example.com"
+    roles: ["moderator", "user"]
+    active: false
+    last_login: "2025-07-20T09:15:00Z"
+
+groups:
+  - name: "Administrators"
+    permissions: ["read", "write", "delete", "admin"]
+    members: [1]
+
+  - name: "Moderators"
+    permissions: ["read", "write", "moderate"]
+    members: [3]
+
+  - name: "Regular Users"
+    permissions: ["read"]
+    members: [1, 2, 3]

@@ -1,0 +1,37 @@
+# Build files
+_deps/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Generated executables in sample_test directory
+sample_test/merge_comment_test
+sample_test/nested_seq_test
+sample_test/escape_test
+sample_test/boolean_test
+sample_test/scientific_test
+sample_test/null_test
+
+# Object files
+*.o
+*.obj
+
+# Temporary files
+*.tmp
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

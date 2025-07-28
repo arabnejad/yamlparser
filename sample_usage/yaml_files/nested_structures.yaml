@@ -1,0 +1,12 @@
+database:
+  host: "localhost"
+  port: 5432
+  name: "myapp_db"
+  pool:
+    max_connections: 20
+    timeout: 30
+    retry_attempts: 3
+  credentials:
+    username: "admin"
+    password: "secret123"
+    ssl_enabled: true

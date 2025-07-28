@@ -1,0 +1,29 @@
+database:
+  host: localhost
+  port: 5432
+  settings:
+    max_connections: 100
+    timeout: 30
+    retry:
+      attempts: 3
+      delay: 5
+
+services:
+  - name: service1
+    config:
+      enabled: true
+      port: 8080
+  - name: service2
+    config:
+      enabled: false
+      port: 8081
+
+cache:
+  enabled: true
+  settings:
+    max_size: 1024
+    ttl: 3600
+    algorithm:
+      type: lru
+      params:
+        chunks: 16

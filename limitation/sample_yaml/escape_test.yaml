@@ -1,0 +1,3 @@
+special_chars: "Tab\there\nNewline here"
+quoted_string: "String with \"quotes\" inside"
+simple_string: "This works fine"

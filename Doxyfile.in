@@ -1,0 +1,30 @@
+# Doxyfile.in for CMake configuration
+
+
+PROJECT_NAME           = "YamlParser"
+OUTPUT_DIRECTORY       = docs
+INPUT                  = src include README.md limitation/limitation.md sample_usage/README.md
+RECURSIVE              = YES
+
+# Markdown integration
+USE_MDFILE_AS_MAINPAGE = README.md
+MARKDOWN_SUPPORT       = YES
+
+# Output format
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HTML_OUTPUT            = .
+FULL_PATH_NAMES        = NO
+STRIP_FROM_PATH        = src include
+QUIET                  = YES
+
+# Theme customization
+HTML_EXTRA_STYLESHEET  = @AWESOME_CSS_DIR@/doxygen-awesome.css
+GENERATE_TREEVIEW      = YES
+HTML_COLORSTYLE        = LIGHT
+FULL_SIDEBAR           = NO
+
+# Optimization
+EXTRACT_ALL            = YES
+INLINE_SOURCES         = YES
+STRIP_CODE_COMMENTS    = NO

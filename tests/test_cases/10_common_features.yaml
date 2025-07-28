@@ -1,0 +1,43 @@
+# Common YAML features demonstration
+comments:
+  inline_comment: value  # This is an inline comment
+  # This is a full line comment
+  after_comment: value
+
+multiline_strings:
+  folded: >
+    This is a long text that will be
+    folded into a single line,
+    removing the newlines.
+  literal: |
+    This is a long text that will
+    preserve its newlines and
+    formatting exactly as written.
+  indented_block: |
+    First line
+      Indented line
+        More indented
+    Back to start
+
+sequences:
+  simple:
+    - item1
+    - item2
+  nested:
+    - - nested1
+      - nested2
+    - - nested3
+      - nested4
+  inline: ["item1", "item2", "item3"]
+
+anchors_and_aliases:
+  defaults: &defaults
+    timeout: 30
+    retries: 3
+  service1:
+    <<: *defaults
+    name: service1
+  service2:
+    <<: *defaults
+    name: service2
+    timeout: 60    # Override default

@@ -1,0 +1,54 @@
+# Ignore CMake Doxygen files anywhere in the project
+CMakeDoxyfile.in
+CMakeDoxygenDefaults.cmake
+**/CMakeDoxyfile.in
+**/CMakeDoxygenDefaults.cmake
+# Ignore build artifacts
+build/
+
+# Ignore generated documentation
+docs/
+
+# Ignore CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+Testing/
+
+# Ignore IDE/editor files
+*.swp
+*.swo
+*.user
+*.vcxproj*
+*.DS_Store
+.vscode/
+.idea/
+
+# Ignore test output
+*.log
+*.out
+
+# Ignore generated files
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.lib
+
+# Ignore _deps directories anywhere in the project
+**/_deps/
+
+*.sh
+
+# Ignore gcovr coverage output
+coverage_gcovr.*.html
+coverage_gcovr.css
+coverage_gcovr.functions.html
+coverage_gcovr.html
+
+# Ignore cppcheck output
+cppcheck_checkers.txt

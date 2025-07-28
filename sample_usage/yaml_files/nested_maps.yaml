@@ -1,0 +1,23 @@
+servers:
+  web1:
+    host: "web1.example.com"
+    port: 80
+    ssl: false
+  web2:
+    host: "web2.example.com"
+    port: 443
+    ssl: true
+  database:
+    host: "db.example.com"
+    port: 5432
+    ssl: true
+
+environments:
+  development:
+    api_url: "http://dev-api.example.com"
+    debug: true
+    log_level: "debug"
+  production:
+    api_url: "https://api.example.com"
+    debug: false
+    log_level: "error"

@@ -1,0 +1,47 @@
+simple_sequence:
+  - item1
+  - item2
+  - item3
+
+flow_sequence: [item1, item2, item3]
+
+nested_sequence:
+  - - nested1
+    - nested2
+  - - nested3
+    - nested4
+
+number_sequence:
+  - 42
+  - 55
+  - 67
+
+string_sequence:
+  - "string1"
+  - "string2"
+  - "string3"
+
+sequence_of_mappings:
+  - name: John
+    age: 30
+    roles: ["admin", "user"]
+  - name: Jane
+    age: 28
+    roles: ["user"]
+
+mapping_of_sequences:
+  numbers: [1, 2, 3, 4, 5]
+  letters: ["a", "b", "c", "d", "e"]
+  more_numbers: [10, 20, 30]
+
+complex_nesting:
+  - id: 1
+    data:
+      - type: A
+        values: [1, 2, 3]
+      - type: B
+        values: [4, 5, 6]
+  - id: 2
+    data:
+      - type: C
+        values: [7, 8, 9]

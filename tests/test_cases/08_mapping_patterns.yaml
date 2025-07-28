@@ -1,0 +1,22 @@
+# Different mapping patterns in YAML
+basic_mapping:
+  key1: value1
+  key2: value2
+
+nested_mapping:
+  level1:
+    level2:
+      level3: value3
+      level3_sibling: value4
+    level2_sibling: value5
+  level1_sibling: value6
+
+sequence_in_mapping:
+  simple_list: [1, 2, 3]
+  names: ["John", "Jane", "Bob"]
+
+mapping_in_sequence:
+  - name: item1
+    value: 100
+  - name: item2
+    value: 200

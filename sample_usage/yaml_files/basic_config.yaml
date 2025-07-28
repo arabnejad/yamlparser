@@ -1,0 +1,6 @@
+name: "Basic Configuration"
+version: "1.0.0"
+enabled: true
+port: 8080
+timeout: 30
+description: "This is a basic configuration example"

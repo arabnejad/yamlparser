@@ -1,0 +1,30 @@
+strings:
+  unquoted: This is an unquoted string
+  single_quoted: 'This is a single-quoted string'
+  double_quoted: "This is a double-quoted string"
+  empty: ""
+  special_chars:
+    quotes: "String with 'mixed' \"quotes\""
+    escapes: "Tab\t and newline\n and unicode \u0026"
+    multiline: "This string\nspans multiple\nlines"
+
+special_values:
+  null_explicit: null
+  null_implicit:
+  true_values:
+    - true
+    - True
+    - TRUE
+  false_values:
+    - false
+    - False
+    - FALSE
+
+paths:
+  windows_path: "C:\\Program Files\\App"
+  unix_path: /usr/local/bin
+  url: https://example.com
+
+regex_patterns:
+  simple: "[a-zA-Z]+"
+  complex: "^(?:[0-9]{3}-){2}[0-9]{4}$"
