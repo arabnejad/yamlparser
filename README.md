@@ -1,6 +1,8 @@
 ﻿
-
 # YamlParserLib
+
+<img src="logo.png" alt="YamlParserLib Logo" width="20%">
+
 
 A modern C++14 YAML parser library with CMake build, GoogleTest. Format code (optional):
 
