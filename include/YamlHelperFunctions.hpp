@@ -36,8 +36,8 @@ std::string trim(const std::string &s);
 
 YamlItem parseMultilineLiteral(const std::vector<std::string> &lines, size_t &idx, int curIndent, char style);
 
-YamlItem parseAnchor(const std::string &, const std::string &value, const std::vector<std::string> &lines, size_t &idx,
-                     int curIndent, std::map<std::string, YamlItem> &anchors, YamlParser &parser);
+YamlItem parseAnchor(const std::string &value, const std::vector<std::string> &lines, size_t &idx,
+                     std::map<std::string, YamlItem> &anchors, YamlParser &parser);
 
 YamlItem parseAlias(const std::string &value, const std::map<std::string, YamlItem> &anchors);
 

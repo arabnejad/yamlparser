@@ -206,7 +206,7 @@ bool YamlParser::parseMapEntry(const std::vector<std::string> &lines, size_t &id
   } else if (isMultilineLiteral(value)) {
     map[key] = parseMultilineLiteral(lines, idx, static_cast<int>(curIndent), value[0]);
   } else if (isAnchor(value)) {
-    map[key] = parseAnchor(key, value, lines, idx, static_cast<int>(curIndent), m_anchors, *this);
+    map[key] = parseAnchor(value, lines, idx, m_anchors, *this);
   } else if (isMergeKey(key, value)) {
     parseMergeKey(value, map, m_anchors);
     idx++;
@@ -316,7 +316,7 @@ YamlMap YamlParser::parseMap(const std::vector<std::string> &lines, size_t &idx,
       map[key] = parseMultilineLiteral(lines, idx, static_cast<int>(curIndent), value[0]);
       explicitKeys.insert(key);
     } else if (isAnchor(value)) {
-      map[key] = parseAnchor(key, value, lines, idx, static_cast<int>(curIndent), m_anchors, *this);
+      map[key] = parseAnchor(value, lines, idx, m_anchors, *this);
       explicitKeys.insert(key);
     } else if (isMergeKey(key, value)) {
       parseMergeKey(value, map, m_anchors);

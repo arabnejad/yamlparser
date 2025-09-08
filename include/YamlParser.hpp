@@ -9,8 +9,8 @@ namespace yamlparser {
 
 // Forward declarations for friend functions
 class YamlParser;
-YamlItem parseAnchor(const std::string &, const std::string &value, const std::vector<std::string> &lines, size_t &idx,
-                     int curIndent, std::map<std::string, YamlItem> &anchors, YamlParser &parser);
+YamlItem parseAnchor(const std::string &value, const std::vector<std::string> &lines, size_t &idx,
+                     std::map<std::string, YamlItem> &anchors, YamlParser &parser);
 YamlItem parseInlineSeq(const std::string &value);
 
 /**
@@ -42,8 +42,8 @@ YamlItem parseInlineSeq(const std::string &value);
  */
 class YamlParser {
   // Grant friend access to helper functions that need internal parsing methods
-  friend YamlItem parseAnchor(const std::string &, const std::string &value, const std::vector<std::string> &lines,
-                              size_t &idx, int curIndent, std::map<std::string, YamlItem> &anchors, YamlParser &parser);
+  friend YamlItem parseAnchor(const std::string &value, const std::vector<std::string> &lines, size_t &idx,
+                              std::map<std::string, YamlItem> &anchors, YamlParser &parser);
   friend YamlItem parseInlineSeq(const std::string &value);
 
 public:

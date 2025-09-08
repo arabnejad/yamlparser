@@ -140,7 +140,7 @@ TEST_F(YamlHelperFunctionsTest, AnchorParsing) {
   size_t                   mapIdx   = 0;
 
   // Action: Parse anchor that points to a map
-  auto mapResult = parseAnchor("key", "&anchor", mapLines, mapIdx, 0, anchors, parser);
+  auto mapResult = parseAnchor("&anchor", mapLines, mapIdx, anchors, parser);
 
   // Assertions: Should create a map and store it in anchors
   ASSERT_TRUE(mapResult.value.isMap());
@@ -297,7 +297,7 @@ TEST_F(YamlHelperFunctionsTest, ParseAnchorWithMissingOrUnknownAnchor) {
   std::vector<std::string>        lines = {"key: &", "  value"};
   size_t                          idx   = 0;
   // Should throw due to malformed anchor
-  EXPECT_THROW(parseAnchor("key", "&", lines, idx, 0, anchors, parser), std::exception);
+  EXPECT_THROW(parseAnchor("&", lines, idx, anchors, parser), std::exception);
 }
 
 TEST_F(YamlHelperFunctionsTest, ParseAliasWithUnknownAnchor) {

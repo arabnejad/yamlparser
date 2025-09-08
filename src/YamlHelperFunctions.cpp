@@ -145,18 +145,29 @@ YamlItem parseMultilineLiteral(const std::vector<std::string> &lines, size_t &id
  * @details Stores the parsed value in the anchors map for later reference
  *          Supports both sequence and mapping anchor values
  */
-YamlItem parseAnchor(const std::string &, const std::string &value, const std::vector<std::string> &lines, size_t &idx,
-                     int curIndent, std::map<std::string, YamlItem> &anchors, YamlParser &parser) {
+YamlItem parseAnchor(const std::string &value, const std::vector<std::string> &lines, size_t &idx,
+                     std::map<std::string, YamlItem> &anchors, YamlParser &parser) {
+  // value starts with '&'
   std::string anchorName = value.substr(1);
-  idx++;
-  YamlItem anchorNode;
-  if (idx < lines.size() && lines[idx].find("-") != std::string::npos) {
-    anchorNode = YamlItem(YamlElement(parser.parseSeq(lines, idx, curIndent + 2)));
-  } else {
-    anchorNode = YamlItem(YamlElement(parser.parseMap(lines, idx, curIndent + 2)));
+  idx++; // move to the first line of the anchored node
+
+  if (idx < lines.size()) {
+    auto nextIndentPos = lines[idx].find_first_not_of(" \t");
+    if (nextIndentPos != std::string::npos) {
+      std::string next = lines[idx].substr(nextIndentPos);
+      // if next begins with '-', parse sequence; otherwise, parse map
+      YamlItem anchorNode = (!next.empty() && next[0] == '-')
+                                ? YamlItem(YamlElement(parser.parseSeq(lines, idx, static_cast<int>(nextIndentPos))))
+                                : YamlItem(YamlElement(parser.parseMap(lines, idx, static_cast<int>(nextIndentPos))));
+      anchors[anchorName] = anchorNode;
+      return anchorNode;
+    }
   }
-  anchors[anchorName] = anchorNode;
-  return anchorNode;
+
+  // Empty anchor value -> treat as empty string scalar
+  YamlItem empty(YamlElement(std::string("")));
+  anchors[anchorName] = empty;
+  return empty;
 }
 
 /**
