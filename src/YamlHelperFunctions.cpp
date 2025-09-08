@@ -202,30 +202,52 @@ YamlItem parseInlineSeq(const std::string &value) {
   if (value.size() < 2 || value.front() != '[' || value.back() != ']') {
     throw SyntaxException("Malformed inline sequence: missing brackets");
   }
-  std::string              seq_content = value.substr(1, value.size() - 2);
+
+  const std::string        seqContent = value.substr(1, value.size() - 2);
   std::vector<std::string> items;
-  std::string              item;
-  bool                     in_single_quote = false;
-  bool                     in_double_quote = false;
-  for (size_t i = 0; i < seq_content.size(); ++i) {
-    char c = seq_content[i];
-    if (c == '\'' && !in_double_quote) {
-      in_single_quote = !in_single_quote;
-    } else if (c == '"' && !in_single_quote) {
-      in_double_quote = !in_double_quote;
-    } else if (c == ',' && !in_single_quote && !in_double_quote) {
-      items.push_back(trim(item));
-      item.clear();
+  std::string              current;
+  bool                     inSingleQuote = false;
+  bool                     inDoubleQuote = false;
+  int                      bracketDepth  = 0; // support nested inline sequences
+
+  for (size_t i = 0; i < seqContent.size(); ++i) {
+    char c = seqContent[i];
+    if (c == '\'' && !inDoubleQuote) {
+      inSingleQuote = !inSingleQuote;
+      current += c;
+    } else if (c == '\"' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote;
+      current += c;
+    } else if (!inSingleQuote && !inDoubleQuote) {
+      if (c == '[') {
+        ++bracketDepth;
+        current += c;
+      } else if (c == ']') {
+        --bracketDepth;
+        current += c;
+      } else if (c == ',' && bracketDepth == 0) {
+        items.push_back(trim(current));
+        current.clear();
+      } else {
+        current += c;
+      }
     } else {
-      item += c;
+      current += c;
     }
   }
-  if (!item.empty())
-    items.push_back(trim(item));
+  if (!current.empty())
+    items.push_back(trim(current));
+
   YamlSeq seq;
   seq.reserve(items.size());
-  std::transform(items.begin(), items.end(), std::back_inserter(seq),
-                 [](const std::string &it) { return YamlItem(YamlElement(yamlparser::YamlParser::parseScalar(it))); });
+  for (const auto &it : items) {
+    // If item itself looks like an inline seq, parse recursively
+    if (!it.empty() && it.front() == '[' && it.back() == ']') {
+      seq.push_back(parseInlineSeq(it));
+    } else {
+      seq.push_back(YamlItem(YamlElement(yamlparser::YamlParser::parseScalar(it))));
+    }
+  }
   return YamlItem(YamlElement(seq));
 }
 
