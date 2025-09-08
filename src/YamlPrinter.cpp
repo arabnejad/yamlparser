@@ -11,7 +11,35 @@
 
 namespace yamlparser {
 
-// Return a string of n spaces for indentation
+namespace {
+bool needsQuoting(const std::string &s) {
+  if (s.empty())
+    return true; // for empty string, "null" will be print
+  if (s.front() == ' ' || s.back() == ' ')
+    return true;
+  // special leading characters or YAML syntax chars
+  if (s.front() == '-' || s.front() == '?' || s.front() == ':')
+    return true;
+  return s.find_first_of(":#{}[],&*!?|>'\"%@`") != std::string::npos;
+}
+
+std::string quoteIfNeeded(const std::string &s) {
+  if (!needsQuoting(s))
+    return s;
+  // simple single-quote strategy: double single-quotes inside
+  std::string out;
+  out.reserve(s.size() + 2);
+  out.push_back('\'');
+  for (char c : s) {
+    out.push_back(c);
+    if (c == '\'')
+      out.push_back('\''); // escape by doubling
+  }
+  out.push_back('\'');
+  return out;
+}
+} // anonymous namespace
+
 /**
  * @brief Creates an indentation string with specified number of spaces
  * @param n Number of spaces to generate
@@ -33,17 +61,14 @@ std::string makeIndent(int n) {
  *          - Empty string conversion to null
  */
 void YamlPrinter::print(const YamlMap &map, std::ostream &os, int indent) {
-  std::string indentStr(makeIndent(indent));
+  std::string indentStr = makeIndent(indent);
   for (const auto &kv : map) {
-    os << indentStr << kv.first << ": ";
-    // Special case: key is literally "null"
-    if (kv.first == "null") {
+    os << indentStr << quoteIfNeeded(kv.first) << ": ";
+    const YamlElement &v = kv.second.value;
+    if (v.isString() && v.asString().empty()) {
+      // empty string prints as null
       os << "null" << std::endl;
-      continue;
-    }
-    // Convert NONE type or empty strings to explicit "null"
-    if (kv.second.value.type == YamlElement::ElementType::NONE ||
-        (kv.second.value.isString() && kv.second.value.asString().empty())) {
+    } else if (v.type == YamlElement::ElementType::NONE) {
       os << "null" << std::endl;
     } else {
       print(kv.second, os, indent + 2);
@@ -62,7 +87,7 @@ void YamlPrinter::print(const YamlMap &map, std::ostream &os, int indent) {
  *          - Recursive printing of complex items
  */
 void YamlPrinter::print(const YamlSeq &seq, std::ostream &os, int indent) {
-  std::string indentStr(static_cast<std::string::size_type>(indent), ' ');
+  std::string indentStr = makeIndent(indent);
   for (const auto &item : seq) {
     os << indentStr << "- ";
     print(item, os, indent + 2);
@@ -82,36 +107,31 @@ void YamlPrinter::print(const YamlSeq &seq, std::ostream &os, int indent) {
  *          - Nested maps and sequences
  */
 void YamlPrinter::print(const YamlItem &item, std::ostream &os, int indent) {
-  switch (item.value.type) {
-  case YamlElement::ElementType::STRING: {
-    const std::string &str = *item.value.data.str;
-    if (str.empty())
-      os << "null" << std::endl;
-    else
-      os << str << std::endl;
+  const YamlElement &v = item.value;
+  switch (v.type) {
+  case YamlElement::ElementType::STRING:
+    os << quoteIfNeeded(v.asString()) << std::endl;
     break;
-  }
   case YamlElement::ElementType::DOUBLE:
-    os << item.value.data.d << std::endl;
+    os << v.asDouble() << std::endl;
     break;
   case YamlElement::ElementType::INT:
-    os << item.value.data.i << std::endl;
+    os << v.asInt() << std::endl;
     break;
   case YamlElement::ElementType::BOOL:
-    os << (item.value.data.b ? "true" : "false") << std::endl;
+    os << (v.asBool() ? "true" : "false") << std::endl;
     break;
   case YamlElement::ElementType::SEQ:
     os << std::endl;
-    print(*item.value.data.seq, os, indent + 2);
+    print(v.asSeq(), os, indent + 2);
     break;
   case YamlElement::ElementType::MAP:
     os << std::endl;
-    print(*item.value.data.map, os, indent + 2);
+    print(v.asMap(), os, indent + 2);
     break;
   default:
     os << "null" << std::endl;
     break;
   }
 }
-
 } // namespace yamlparser
