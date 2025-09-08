@@ -124,7 +124,7 @@ TEST_F(YamlHelperFunctionsTest, MultilineLiteralParsing) {
   auto foldedResult = parseMultilineLiteral(foldedLines, foldedIdx, 1, '>');
 
   // Assertion: Should combine lines with spaces (folded style)
-  EXPECT_EQ(foldedResult.value.asString(), "line1 line2 ");
+  EXPECT_EQ(foldedResult.value.asString(), "line1 line2");
 }
 
 TEST_F(YamlHelperFunctionsTest, AnchorParsing) {
@@ -273,7 +273,7 @@ TEST_F(YamlHelperFunctionsTest, ParseMultilineLiteralWithEmptyOrWhitespaceLines)
   std::vector<std::string> lines1  = {"key: |", "   ", "   ", "other: value"};
   size_t                   idx1    = 0;
   auto                     result1 = parseMultilineLiteral(lines1, idx1, 1, '|');
-  EXPECT_EQ(result1.value.asString(), "\n\n");
+  EXPECT_EQ(result1.value.asString(), "");
 
   std::vector<std::string> lines2  = {"key: |", "other: value"};
   size_t                   idx2    = 0;
@@ -287,7 +287,7 @@ TEST_F(YamlHelperFunctionsTest, ParseMultilineLiteralWithMissingBlockIndicator) 
   size_t                   idx   = 0;
   // Should not crash, returns joined lines
   auto result = parseMultilineLiteral(lines, idx, 1, ' ');
-  EXPECT_EQ(result.value.asString(), "line1 line2 ");
+  EXPECT_EQ(result.value.asString(), "line1 line2");
 }
 
 TEST_F(YamlHelperFunctionsTest, ParseAnchorWithMissingOrUnknownAnchor) {

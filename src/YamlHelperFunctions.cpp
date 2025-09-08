@@ -105,17 +105,30 @@ std::string trim(const std::string &s) {
  */
 YamlItem parseMultilineLiteral(const std::vector<std::string> &lines, size_t &idx, int curIndent, char style) {
   std::string multiline;
-  idx++;
+  idx++; // move past the line containing '|' or '>'
+
+  auto continues = [&](size_t i) -> bool {
+    if (i >= lines.size()) // reach end of file
+      return false;
+    auto firstNonSpacePos = lines[i].find_first_not_of(" \t");
+    // must be a non-empty line AND more indented than the literal introducer
+    return firstNonSpacePos != std::string::npos && firstNonSpacePos > static_cast<std::string::size_type>(curIndent);
+  };
+
   if (style == '|') {
-    while (idx < lines.size() && lines[idx].find_first_not_of(" \t") > static_cast<std::string::size_type>(curIndent)) {
+    while (continues(idx)) {
       multiline += trim(lines[idx]) + "\n";
-      idx++;
+      ++idx;
     }
   } else { // style == '>'
-    while (idx < lines.size() && lines[idx].find_first_not_of(" \t") > static_cast<std::string::size_type>(curIndent)) {
+    while (continues(idx)) {
       multiline += trim(lines[idx]) + " ";
-      idx++;
+      ++idx;
     }
+
+    // trim a trailing space added by the last fold
+    if (!multiline.empty() && multiline.back() == ' ')
+      multiline.pop_back();
   }
   return YamlItem(YamlElement(multiline));
 }
