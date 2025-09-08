@@ -10,7 +10,6 @@ sample_test/merge_comment_test
 sample_test/nested_seq_test
 sample_test/escape_test
 sample_test/boolean_test
-sample_test/scientific_test
 sample_test/null_test
 
 # Object files

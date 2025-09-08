@@ -830,7 +830,6 @@ The YAML parser has some known limitations that affect certain YAML constructs. 
 - **Nested Sequences**: Sequences within sequences become empty maps
 - **String Escape Sequences**: Escape sequences kept literal, not processed
 - **Boolean Recognition**: Only lowercase `true`/`false` recognized
-- **Scientific Notation**: Parsed as strings, not numbers
 - **Empty Values**: Treated as empty strings rather than nulls
 
 ### Testing Limitations

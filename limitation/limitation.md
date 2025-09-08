@@ -32,12 +32,6 @@ This document outlines the **confirmed limitations** of the C++ YAML parser libr
 - **Workaround**: Use only lowercase `true` and `false` for boolean values
 - **Test**: `boolean_test.cpp` with `boolean_test.yaml`
 
-## Scientific Notation
-- **Issue**: Scientific notation in numbers is parsed as strings
-- **Description**: Numbers in scientific notation (e.g., `1.23e-4`) are treated as string values, not numeric values
-- **Workaround**: Use standard decimal notation instead of scientific notation
-- **Test**: `scientific_test.cpp` with `scientific_test.yaml`
-
 ## Empty Values and Implicit Nulls
 - **Issue**: Empty values are treated as empty strings or "null" strings
 - **Description**: Keys with empty values become empty strings rather than null values
@@ -64,7 +58,6 @@ This document outlines the **confirmed limitations** of the C++ YAML parser libr
    ./sample_test/nested_seq_test
    ./sample_test/escape_test
    ./sample_test/boolean_test
-   ./sample_test/scientific_test
    ./sample_test/null_test
    ```
 
@@ -82,13 +75,11 @@ limitation/
 │   ├── nested_seq_test.yaml
 │   ├── escape_test.yaml
 │   ├── boolean_test.yaml
-│   ├── scientific_test.yaml
 │   └── null_test.yaml
 └── sample_test/                 # C++ test programs and executables
     ├── merge_comment_test.cpp   → merge_comment_test
     ├── nested_seq_test.cpp      → nested_seq_test
     ├── escape_test.cpp          → escape_test
     ├── boolean_test.cpp         → boolean_test
-    ├── scientific_test.cpp      → scientific_test
     └── null_test.cpp            → null_test
 ```

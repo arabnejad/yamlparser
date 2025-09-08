@@ -226,9 +226,8 @@ TEST_F(YamlParserCasesTest, DatesAndNumbers) {
   EXPECT_DOUBLE_EQ(floats.at("negative").value.asDouble(), -0.001);
 
   ASSERT_TRUE(floats.find("scientific") != floats.end());
-  // Scientific notation might be parsed as string
-  std::string scientificValue = floats.at("scientific").value.asString();
-  EXPECT_EQ(scientificValue, "1.23e-4");
+  // Scientific notation is parsed as a double
+  EXPECT_NEAR(floats.at("scientific").value.asDouble(), 1.23e-4, 1e-12);
 
   // Special float values (might be parsed as strings)
   ASSERT_TRUE(floats.find("infinity") != floats.end());

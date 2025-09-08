@@ -33,7 +33,6 @@ set(TEST_SOURCES
     sample_test/nested_seq_test.cpp
     sample_test/escape_test.cpp
     sample_test/boolean_test.cpp
-    sample_test/scientific_test.cpp
     sample_test/null_test.cpp
 )
 
@@ -83,6 +82,5 @@ add_custom_target(all_limitation_tests ALL DEPENDS
     nested_seq_test
     escape_test
     boolean_test
-    scientific_test
     null_test
 )

@@ -10,7 +10,6 @@ This folder contains a test suite for demonstrating the confirmed limitations of
 2. **Nested Sequences** - Sequences within sequences become empty maps
 3. **String Escape Sequences** - Escape sequences kept literal, not processed
 4. **Boolean Recognition** - Only lowercase true/false recognized
-5. **Scientific Notation** - Scientific notation parsed as strings
 6. **Empty Values/Nulls** - Empty values treated as empty strings
 
 ## Quick Start
