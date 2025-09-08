@@ -264,16 +264,19 @@ YamlItem parseInlineSeq(const std::string &value) {
  */
 void parseMergeKey(const std::string &value, std::map<std::string, YamlItem> &map,
                    const std::map<std::string, YamlItem> &anchors) {
+  // value is like: *anchorName
   std::string aliasName = value.substr(1);
   auto        it        = anchors.find(aliasName);
   if (it != anchors.end() && it->second.value.isMap()) {
-    YamlMap merged = it->second.value.asMap();
+    const YamlMap &merged = it->second.value.asMap();
     for (const auto &kv : merged) {
-      // Only insert if key does not already exist in the current map
       if (map.find(kv.first) == map.end()) {
-        map[kv.first] = kv.second;
+        map.insert(kv); // keep original insertion order of merged items
       }
     }
+  } else if (it == anchors.end()) {
+    // else: non-map merge target throw exception
+    throw KeyException("*" + aliasName);
   }
 }
 
