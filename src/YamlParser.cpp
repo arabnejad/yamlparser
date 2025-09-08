@@ -521,13 +521,19 @@ YamlElement YamlParser::parseScalar(const std::string &value) {
  * @return Cleaned scalar text
  */
 std::string YamlParser::preprocessScalarValue(const std::string &value) {
-  // Remove comments and trim whitespace
-  std::string scalarStr   = value;
-  auto        comment_pos = scalarStr.find('#');
-  if (comment_pos != std::string::npos) {
-    scalarStr.resize(comment_pos);
+  // Trim first; if quoted, do NOT strip comments here.
+  std::string s = trim(value);
+  if (s.empty())
+    return s;
+  if (s.front() == '\'' || s.front() == '\"') {
+    return s; // leave quoted content intact; quotes handled later
   }
-  return trim(scalarStr);
+  // Otherwise, strip trailing comment and trim again.
+  auto hash = s.find('#');
+  if (hash != std::string::npos) {
+    s.resize(hash);
+  }
+  return trim(s);
 }
 
 /**
