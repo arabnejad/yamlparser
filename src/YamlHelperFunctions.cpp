@@ -178,13 +178,13 @@ YamlItem parseAnchor(const std::string &value, const std::vector<std::string> &l
  * @details If the alias is not found in the anchors map, returns an empty string item
  */
 YamlItem parseAlias(const std::string &value, const std::map<std::string, YamlItem> &anchors) {
+  // value starts with '*'
   std::string aliasName = value.substr(1);
   auto        it        = anchors.find(aliasName);
-  if (it != anchors.end()) {
-    return it->second;
-  } else {
-    return YamlItem(YamlElement(std::string("")));
+  if (it == anchors.end()) {
+    throw KeyException("*" + aliasName);
   }
+  return it->second;
 }
 
 /**

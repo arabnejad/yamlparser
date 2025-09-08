@@ -119,11 +119,7 @@ TEST_F(YamlParserTest, ParseInvalidAnchorOrAlias) {
   std::ofstream ofs("test_badanchor.yaml");
   ofs << yaml;
   ofs.close();
-  EXPECT_NO_THROW(parser.parse("test_badanchor.yaml"));
-  auto &root = parser.root();
-  ASSERT_TRUE(root.find("foo") != root.end());
-  // Should be empty or NONE for unresolved alias
-  EXPECT_TRUE(root.at("foo").value.type == YamlElement::ElementType::NONE || root.at("foo").value.asString() == "");
+  EXPECT_THROW(parser.parse("test_badanchor.yaml"), KeyException);
   std::remove("test_badanchor.yaml");
 }
 

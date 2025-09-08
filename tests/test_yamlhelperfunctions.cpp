@@ -165,10 +165,7 @@ TEST_F(YamlHelperFunctionsTest, AliasParsing) {
   EXPECT_EQ(result.value.asString(), "bar");
 
   // Action: Parse invalid alias
-  auto result2 = parseAlias("*baz", anchors);
-
-  // Assertion: Should return empty string for unknown alias
-  EXPECT_EQ(result2.value.asString(), "");
+  EXPECT_THROW(parseAlias("*baz", anchors), KeyException);
 }
 
 TEST_F(YamlHelperFunctionsTest, InlineSequenceParsing) {
@@ -303,8 +300,8 @@ TEST_F(YamlHelperFunctionsTest, ParseAnchorWithMissingOrUnknownAnchor) {
 TEST_F(YamlHelperFunctionsTest, ParseAliasWithUnknownAnchor) {
   // This test checks that parseAlias returns NONE/empty for unknown anchor.
   std::map<std::string, YamlItem> anchors;
-  auto                            result = parseAlias("*unknown", anchors);
-  EXPECT_TRUE(result.value.type == YamlElement::ElementType::NONE || result.value.asString() == "");
+
+  EXPECT_THROW(parseAlias("*unknown", anchors), KeyException);
 }
 
 TEST_F(YamlHelperFunctionsTest, ParseInlineSeqWithEmptyOrMalformedInput) {
