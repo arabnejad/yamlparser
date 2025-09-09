@@ -119,7 +119,7 @@ public:
   ~YamlElement() = default;
   /** @} */
 
-  void swap(YamlElement &other);
+  void swap(YamlElement &other) noexcept;
 
   /**
    * @name Value Access Methods
@@ -128,11 +128,11 @@ public:
    */
   const std::string &asString() const;
 
-  const double &asDouble() const;
+  double asDouble() const;
 
-  const int &asInt() const;
+  int asInt() const;
 
-  const bool &asBool() const;
+  bool asBool() const;
 
   const YamlSeq &asSeq() const;
 

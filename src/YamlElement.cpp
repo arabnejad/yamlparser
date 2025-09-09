@@ -187,7 +187,7 @@ bool YamlElement::isScalar() const {
  * @details Provides strong exception guarantee as only std::swap operations are used
  *          Used by copy-and-swap idiom in assignment operators
  */
-void YamlElement::swap(YamlElement &other) {
+void YamlElement::swap(YamlElement &other) noexcept {
   std::swap(type, other.type);
   std::swap(data, other.data);
 }
@@ -206,10 +206,10 @@ const std::string &YamlElement::asString() const {
 
 /**
  * @brief Accesses the double value
- * @return Const reference to the stored double
+ * @return value of the stored double
  * @throws TypeException if element is not a double
  */
-const double &YamlElement::asDouble() const {
+double YamlElement::asDouble() const {
   if (type != ElementType::DOUBLE) {
     throw TypeException("Expected double, but element is not a double");
   }
@@ -217,10 +217,10 @@ const double &YamlElement::asDouble() const {
 }
 /**
  * @brief Accesses the integer value
- * @return Const reference to the stored integer
+ * @return value of the stored integer
  * @throws TypeException if element is not an integer
  */
-const int &YamlElement::asInt() const {
+int YamlElement::asInt() const {
   if (type != ElementType::INT) {
     throw TypeException("Expected integer, but element is not an integer");
   }
@@ -229,10 +229,10 @@ const int &YamlElement::asInt() const {
 
 /**
  * @brief Accesses the boolean value
- * @return Const reference to the stored boolean
+ * @return value of the stored boolean
  * @throws TypeException if element is not a boolean
  */
-const bool &YamlElement::asBool() const {
+bool YamlElement::asBool() const {
   if (type != ElementType::BOOL) {
     throw TypeException("Expected boolean, but element is not a boolean");
   }
