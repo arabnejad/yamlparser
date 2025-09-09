@@ -267,16 +267,17 @@ void parseMergeKey(const std::string &value, std::map<std::string, YamlItem> &ma
   // value is like: *anchorName
   std::string aliasName = value.substr(1);
   auto        it        = anchors.find(aliasName);
-  if (it != anchors.end() && it->second.value.isMap()) {
-    const YamlMap &merged = it->second.value.asMap();
-    for (const auto &kv : merged) {
-      if (map.find(kv.first) == map.end()) {
-        map.insert(kv); // keep original insertion order of merged items
-      }
-    }
-  } else if (it == anchors.end()) {
-    // else: non-map merge target throw exception
+  if (it == anchors.end()) {
     throw KeyException("*" + aliasName);
+  }
+  if (!it->second.value.isMap()) {
+    throw TypeException("Merge target is not a mapping: '*" + aliasName + "'");
+  }
+  const YamlMap &merged = it->second.value.asMap();
+  for (const auto &kv : merged) {
+    if (map.find(kv.first) == map.end()) {
+      map.insert(kv); // preserve existing keys
+    }
   }
 }
 
