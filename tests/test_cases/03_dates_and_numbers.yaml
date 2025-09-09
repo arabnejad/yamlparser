@@ -8,6 +8,7 @@ numbers:
   integers:
     decimal: 12345
     negative: -789
+    plus_sign: +42
     zero: 0
     octal: 0o664
     hexadecimal: 0xFF
@@ -20,7 +21,6 @@ numbers:
     not_number: .nan
   special_cases:
     zero_padded: 00230.000
-    plus_sign: +42
     unsigned: 42u
 timestamps:
   created_at: 2025-07-26T15:30:00Z

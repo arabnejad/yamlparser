@@ -203,6 +203,9 @@ TEST_F(YamlParserCasesTest, DatesAndNumbers) {
   ASSERT_TRUE(integers.find("negative") != integers.end());
   EXPECT_EQ(integers.at("negative").value.asInt(), -789);
 
+  ASSERT_TRUE(integers.find("plus_sign") != integers.end());
+  EXPECT_EQ(integers.at("plus_sign").value.asInt(), +42);
+
   ASSERT_TRUE(integers.find("zero") != integers.end());
   EXPECT_EQ(integers.at("zero").value.asInt(), 0);
 
@@ -243,8 +246,6 @@ TEST_F(YamlParserCasesTest, DatesAndNumbers) {
   ASSERT_TRUE(specialCases.find("zero_padded") != specialCases.end());
   EXPECT_DOUBLE_EQ(specialCases.at("zero_padded").value.asDouble(), 230.0);
 
-  ASSERT_TRUE(specialCases.find("plus_sign") != specialCases.end());
-  EXPECT_EQ(specialCases.at("plus_sign").value.asString(), "+42");
   ASSERT_TRUE(specialCases.find("unsigned") != specialCases.end());
   EXPECT_EQ(specialCases.at("unsigned").value.asString(), "42u");
 

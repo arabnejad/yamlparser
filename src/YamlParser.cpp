@@ -558,8 +558,8 @@ YamlElement YamlParser::tryParsePrimitive(const std::string &cleanValue) {
  * @return Parsed numeric element or string if not numeric
  */
 YamlElement YamlParser::parseNumericValue(const std::string &value) {
-  static const std::regex int_re("^-?\\d+$");
-  static const std::regex double_re("^-?(?:\\d+\\.\\d*|\\.\\d+|\\d+)(?:[eE][+-]?\\d+)?$");
+  static const std::regex int_re("^[+-]?\\d+$");
+  static const std::regex double_re("^[+-]?(?:\\d+\\.\\d*|\\.\\d+|\\d+)(?:[eE][+-]?\\d+)?$");
 
   // Try integer parsing
   if (std::regex_match(value, int_re)) {
