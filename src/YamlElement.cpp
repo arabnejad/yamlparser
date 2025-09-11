@@ -21,7 +21,7 @@ YamlElement::YamlElement() : type(ElementType::NONE), data() {}
  * @param s String value to store
  */
 YamlElement::YamlElement(const std::string &s) : type(ElementType::STRING), data() {
-  data.str = std::make_unique<std::string>(s);
+  data.str = s;
 }
 
 /**
@@ -76,8 +76,7 @@ YamlElement::YamlElement(const YamlMap &map) : type(ElementType::MAP), data() {
 YamlElement::YamlElement(const YamlElement &other) : type(other.type), data() {
   switch (type) {
   case ElementType::STRING:
-    if (other.data.str)
-      data.str = std::make_unique<std::string>(*other.data.str);
+    data.str = other.data.str;
     break;
   case ElementType::DOUBLE:
     data.d = other.data.d;
@@ -201,7 +200,7 @@ const std::string &YamlElement::asString() const {
   if (type != ElementType::STRING) {
     throw TypeException("Expected string, but element is not a string");
   }
-  return *data.str;
+  return data.str;
 }
 
 /**

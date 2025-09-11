@@ -67,7 +67,7 @@ public:
    */
   struct Data {
     /** @brief String value storage (valid when type == STRING) */
-    std::unique_ptr<std::string> str;
+    std::string str;
     /** @brief Double value storage (valid when type == DOUBLE) */
     double d;
     /** @brief Integer value storage (valid when type == INT) */
@@ -78,7 +78,7 @@ public:
     std::unique_ptr<YamlSeq> seq;
     /** @brief Mapping value storage (valid when type == MAP) */
     std::unique_ptr<YamlMap> map;
-    Data() : str(nullptr), d(0), i(0), b(false), seq(nullptr), map(nullptr) {}
+    Data() : str(), d(0), i(0), b(false), seq(nullptr), map(nullptr) {}
   } data;
 
   /**
