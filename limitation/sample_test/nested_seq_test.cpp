@@ -11,7 +11,7 @@ int main() {
   YamlParser parser;
 
   try {
-    parser.parse("../sample_yaml/nested_seq_test.yaml");
+    parser.parse("sample_yaml/nested_seq_test.yaml");
     std::cout << "Parse result: SUCCESS\n";
 
     auto &root = parser.root();

@@ -1,36 +1,23 @@
-# YAML Parser Limitation Tests
+# Limitation Examples
 
-This folder contains a test suite for demonstrating the confirmed limitations of the C++ YAML parser library.
+This folder contains self-contained executables that illustrate known limitations or simplified behaviors of **YamlParserLib**.
 
-## Test Summary
-
-✅ **6 Limitation Tests** - All demonstrating actual parser limitations:
-
-1. **Merge Key Inline Comments** - Inline comments break merge functionality
-2. **Nested Sequences** - Sequences within sequences become empty maps
-3. **String Escape Sequences** - Escape sequences kept literal, not processed
-4. **Boolean Recognition** - Only lowercase true/false recognized
-6. **Empty Values/Nulls** - Empty values treated as empty strings
-
-## Quick Start
+## Build & Run (from repo root)
 
 ```bash
-# Build all tests
-cmake .
-make
-
-# Run all limitation tests
-./run_all_tests.sh
+cmake -S . -B build
+cmake --build build --target sample_limitation
+cmake --build build --target run_sample_limitation
 ```
 
-## Contents
+- Executables are emitted into `limitation/bin/`.
+- When run via the `run_sample_limitation` target, the working directory is set to `limitation/`, so relative paths like `sample_yaml/...` resolve correctly.
 
-- **limitation.md** - Detailed documentation of each limitation with workarounds
-- **sample_yaml/** - YAML files that demonstrate parsing limitations
-- **sample_test/** - C++ test programs that verify each limitation
-- **CMakeLists.txt** - Build configuration (independent of main project)
-- **run_all_tests.sh** - Script to run all tests sequentially
+## Included samples
+- `merge_comment_test`
+- `nested_seq_test`
+- `escape_test`
+- `boolean_test`
+- `null_test`
 
-## What This Tests
-
-Each test demonstrates the specific limitation and shows the actual parser behavior, confirming the documented limitations exist.
+Each one demonstrates a corner case or intentional simplification in the parser.

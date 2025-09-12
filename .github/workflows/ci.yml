@@ -1,95 +1,120 @@
-name: CI
+name: CI (Ubuntu)
 
 on:
   push:
-    branches: ["**"]
+    branches: [ "**" ]
   pull_request:
-    branches: ["**"]
+    branches: [ "**" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   build-and-test:
+    name: Build & Test (Ubuntu)
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v1
-        with:
-          cmake-version: '3.18.0'
-
-
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential lcov gcovr
-
-      - name: Clean build and deps
+      - name: Install tooling (clang-format, gcovr)
         run: |
-          rm -rf build/
-          rm -rf */build/
-          rm -rf */_deps/
-          rm -rf _deps/
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang-format lcov gcovr
 
-      - name: Ensure tests/test_cases directory exists (optional)
-        run: |
-          if [ ! -d tests/test_cases ]; then
-            mkdir -p tests/test_cases
-          fi
+      # Configure
+      - name: Configure CMake (Release)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
-      - name: Configure project (with coverage)
-        run: cmake -S . -B build -DENABLE_COVERAGE=ON
+      # Build library
+      - name: Build library (yamlparser)
+        run: cmake --build build --target yamlparser -- -j2
 
-      - name: Build project (with coverage)
-        run: cmake --build build
+      # Unit tests
+      - name: Build tests
+        run: cmake --build build --target tests -- -j2
 
       - name: Run tests
-        run: |
-          cd build
-          ctest --output-on-failure
+        run: cmake --build build --target run_tests
 
-
-      - name: Build limitation tests
+      # --------- Strict validations (Ubuntu) ----------
+      # 1) Limitation executables must print "CONFIRMED"
+      - name: Verify sample limitation outputs contain 'CONFIRMED'
         run: |
+          cmake --build build --target sample_limitation
+          set -euo pipefail
           cd limitation
-          cmake .
-          make
-
-      - name: Run limitation tests and check for CONFIRMED message
-        run: |
-          cd limitation/sample_test
-          for exe in *; do
-            if [ -x "$exe" ]; then
-              echo "Running $exe"
-              output=$(../sample_test/$exe)
-              echo "$output"
-              if ! echo "$output" | grep -q "CONFIRMED"; then
-                echo "CONFIRMED message not found in $exe output"
-                exit 1
-              fi
+          for exe in bin/*; do
+            [[ -f "$exe" && -x "$exe" ]] || continue
+            echo "Running $exe"
+            output=$("./$exe")
+            echo "$output"
+            if ! echo "$output" | grep -q "CONFIRMED"; then
+              echo "CONFIRMED message not found in $exe output"
+              exit 1
             fi
           done
+          echo "All limitation executables printed CONFIRMED."
 
-      - name: Build sample_usage examples
+      # 2) Sample executables must exit with status 0
+      - name: Verify sample usage exit codes
         run: |
+          cmake --build build --target sample_usage
+          set -euo pipefail
           cd sample_usage
-          cmake -S . -B build
-          cmake --build build
-
-      - name: Run sample usage and check if they pass or not
-        run: |
-          cd sample_usage
-          for exe in build/bin/*; do
-            if [ -x "$exe" ]; then
-              echo "Running $exe"
-              ./$exe
-              rc=$?
-              if [ $rc -ne 0 ]; then
-                echo "$exe did not return 0 (success), got $rc"
-                exit 1
-              fi
+          for exe in bin/*; do
+            [[ -f "$exe" && -x "$exe" ]] || continue
+            echo "Running $exe"
+            "./$exe"
+            rc=$?
+            if [[ $rc -ne 0 ]]; then
+              echo "$exe did not return 0 (success), got $rc"
+              exit 1
             fi
           done
+          echo "All sample usage executables exited with code 0."
+      # ------------------------------------------------
 
-      - name: Run code coverage (gcovr_console)
+      # Optional: clean after everything (no steps depend on build/)
+      - name: Clean all build trees
+        run: cmake --build build --target clean_all
+
+  coverage:
+    name: Coverage (Ubuntu GCC)
+    runs-on: ubuntu-latest
+    env:
+      BUILD_TYPE: Debug
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install gcovr
         run: |
-          cmake --build build --target gcovr_console
-          cat build/coverage_gcovr.txt || true
+          python3 -m pip install --user gcovr
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Configure with coverage
+        run: cmake -S . -B build -DENABLE_COVERAGE=ON -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
+
+      - name: Build & run tests (collect counters)
+        run: cmake --build build --target run_tests_ctest -- -j2
+
+      - name: Coverage (console)
+        run: cmake --build build --target gcovr_console
+
+      - name: Coverage (HTML)
+        run: cmake --build build --target gcovr_html
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: build/coverage/
+          if-no-files-found: error

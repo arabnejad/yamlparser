@@ -1,86 +1,95 @@
 cmake_minimum_required(VERSION 3.14)
 
-
-# Set policy to suppress FetchContent timestamp warning
+# Policy (quiet FetchContent timestamp if ever used)
 if(POLICY CMP0135)
-    cmake_policy(SET CMP0135 NEW)
+  cmake_policy(SET CMP0135 NEW)
 endif()
 
-project(yaml_parser_limitations)
+project(yaml_parser_limitations LANGUAGES CXX)
 
-# Set C++ standard
+# C++14
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Use FetchContent to include the yamlparser library
-include(FetchContent)
-
-
-
-
-# Always add yamlparser as a static library from local source
-add_library(yamlparser STATIC
+# ------------------------------------------------------------------
+# Library visibility: reuse top-level 'yamlparser' if present
+# ------------------------------------------------------------------
+if(NOT TARGET yamlparser)
+  add_library(yamlparser STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/YamlParser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/YamlElement.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/YamlHelperFunctions.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/YamlPrinter.cpp
+  )
+  target_include_directories(yamlparser PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+endif()
+
+# ------------------------------------------------------------------
+# Limitation samples
+# ------------------------------------------------------------------
+set(LIMITATION_SOURCES
+  sample_test/merge_comment_test.cpp
+  sample_test/nested_seq_test.cpp
+  sample_test/escape_test.cpp
+  sample_test/boolean_test.cpp
+  sample_test/null_test.cpp
 )
-target_include_directories(yamlparser PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 
-# Define test executables
-set(TEST_SOURCES
-    sample_test/merge_comment_test.cpp
-    sample_test/nested_seq_test.cpp
-    sample_test/escape_test.cpp
-    sample_test/boolean_test.cpp
-    sample_test/null_test.cpp
-)
+set(_LIM_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin")
 
-# Create executables for each test
-foreach(TEST_SOURCE ${TEST_SOURCES})
-    # Extract the test name from the file path
-    get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
+set(LIMITATION_TARGETS "")
+foreach(src ${LIMITATION_SOURCES})
+  get_filename_component(name ${src} NAME_WE)
 
-    # Create executable in the same directory as the source file
-    get_filename_component(TEST_DIR ${TEST_SOURCE} DIRECTORY)
+  add_executable(${name} ${src})
+  target_link_libraries(${name} PRIVATE yamlparser)
 
-    add_executable(${TEST_NAME} ${TEST_SOURCE})
+  # Warnings + Debug-only sanitizers
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(${name} PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(${name} PRIVATE $<$<CONFIG:Debug>:-fsanitize=address,undefined>)
+    target_link_options   (${name} PRIVATE $<$<CONFIG:Debug>:-fsanitize=address,undefined>)
+  elseif(MSVC)
+    target_compile_options(${name} PRIVATE /W4 /permissive-)
+  endif()
 
-    # Link against the yamlparser library
-    target_link_libraries(${TEST_NAME} PRIVATE yamlparser)
+  # Put executables into limitation/bin for all configs
+  set_target_properties(${name} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY                 ${_LIM_BIN_DIR}
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG           ${_LIM_BIN_DIR}
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE         ${_LIM_BIN_DIR}
+    RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO  ${_LIM_BIN_DIR}
+    RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL      ${_LIM_BIN_DIR}
+    # Handy when debugging in IDEs:
+    VS_DEBUGGER_WORKING_DIRECTORY            ${CMAKE_CURRENT_SOURCE_DIR}
+  )
 
-    # Match the compiler flags from the main project for compatibility
-    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-        target_compile_options(${TEST_NAME} PRIVATE
-            -Wall -Wextra -Wpedantic
-            -fsanitize=address,undefined
-        )
-        target_link_options(${TEST_NAME} PRIVATE -fsanitize=address,undefined)
-    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-        target_compile_options(${TEST_NAME} PRIVATE /W4 /permissive-)
-    endif()
-
-    # Set the output directory to be the same as the source directory
-    set_target_properties(${TEST_NAME} PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}
-    )
-
-    # Set working directory for tests to be the limitation folder
-    set_target_properties(${TEST_NAME} PROPERTIES
-        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    )
+  list(APPEND LIMITATION_TARGETS ${name})
 endforeach()
 
-# Print build information
-message(STATUS "Building YAML Parser Limitation Tests")
-message(STATUS "Test executables will be generated in: ${CMAKE_CURRENT_SOURCE_DIR}/sample_test/")
-message(STATUS "Tests will read YAML files from: ${CMAKE_CURRENT_SOURCE_DIR}/sample_yaml/")
+message(STATUS "Limitation executables will be generated in: ${_LIM_BIN_DIR}")
+message(STATUS "Limitation samples read YAML from: ${CMAKE_CURRENT_SOURCE_DIR}/sample_yaml/")
 
-# Custom target to build all tests
-add_custom_target(all_limitation_tests ALL DEPENDS
-    merge_comment_test
-    nested_seq_test
-    escape_test
-    boolean_test
-    null_test
+# ------------------------------------------------------------------
+# Build limitation examples
+# ------------------------------------------------------------------
+add_custom_target(sample_limitation
+  DEPENDS ${LIMITATION_TARGETS}
+  COMMENT "Build all limitation examples (executables -> limitation/bin)"
+)
+
+# Run limitation examples from the limitation/ folder so relative paths work
+add_custom_target(run_sample_limitation
+  DEPENDS sample_limitation
+  COMMAND ${CMAKE_COMMAND} -E echo "Running limitation examples..."
+  COMMAND ${CMAKE_COMMAND} -E echo "================================"
+  # Each run uses CWD = limitation/
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:merge_comment_test>
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:nested_seq_test>
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:escape_test>
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:boolean_test>
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:null_test>
+  USES_TERMINAL
+  COMMENT "Run all limitation executables from 'limitation/'"
 )
