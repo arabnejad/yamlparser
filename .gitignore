@@ -5,6 +5,7 @@ CMakeDoxygenDefaults.cmake
 **/CMakeDoxygenDefaults.cmake
 # Ignore build artifacts
 build/
+build-*/
 
 # Ignore generated documentation
 docs/
@@ -13,7 +14,6 @@ docs/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-Makefile
 CTestTestfile.cmake
 Testing/
 

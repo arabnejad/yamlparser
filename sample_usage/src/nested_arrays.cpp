@@ -10,24 +10,18 @@ int main() {
   std::cout << "=== Nested Arrays Parser Example ===\n\n";
 
   try {
-    YamlParser parser;
-    parser.parse("yaml_files/nested_arrays.yaml");
-    if (parser.isSequenceRoot()) {
-      std::cerr << "Error: Expected root to be a map, but got sequence\n";
-      return 1;
-    }
-
-    const auto &config = parser.root();
+    const YamlValue document = YamlParser().parseFile("yaml_files/nested_arrays.yaml");
+    const auto     &config   = document.asMapping();
 
     // Print nested_string_arrays
-    const auto &nested_str = config.at("nested_string_arrays").value.asSeq();
+    const auto &nested_str = config.at("nested_string_arrays").asSequence();
     std::cout << "Nested String Arrays:\n";
     std::cout << "---------------------\n";
     for (size_t i = 0; i < nested_str.size(); ++i) {
-      const auto &arr = nested_str[i].value.asSeq();
+      const auto &arr = nested_str[i].asSequence();
       std::cout << "[ ";
       for (size_t j = 0; j < arr.size(); ++j) {
-        std::cout << '"' << arr[j].value.asString() << '"';
+        std::cout << '"' << arr[j].asString() << '"';
         if (j < arr.size() - 1)
           std::cout << ", ";
       }
@@ -36,19 +30,19 @@ int main() {
     std::cout << "\n";
 
     // Print matrix
-    const auto &matrix = config.at("matrix").value.asSeq();
+    const auto &matrix = config.at("matrix").asSequence();
     std::cout << "Matrix:\n";
     std::cout << "-------\n";
     for (size_t i = 0; i < matrix.size(); ++i) {
-      const auto &row = matrix[i].value.asSeq();
+      const auto &row = matrix[i].asSequence();
       std::cout << "Row " << (i + 1) << ": [ ";
       for (size_t j = 0; j < row.size(); ++j) {
-        if (row[j].value.isInt())
-          std::cout << row[j].value.asInt();
-        else if (row[j].value.isDouble())
-          std::cout << row[j].value.asDouble();
-        else if (row[j].value.isString())
-          std::cout << '"' << row[j].value.asString() << '"';
+        if (row[j].isInteger())
+          std::cout << row[j].asInteger();
+        else if (row[j].isDouble())
+          std::cout << row[j].asDouble();
+        else if (row[j].isString())
+          std::cout << '"' << row[j].asString() << '"';
         else
           std::cout << "?";
         if (j < row.size() - 1)
@@ -59,50 +53,50 @@ int main() {
     std::cout << "\n";
 
     // Print coordinates
-    const auto &coords = config.at("coordinates").value.asSeq();
+    const auto &coords = config.at("coordinates").asSequence();
     std::cout << "Coordinates:\n";
     std::cout << "-----------\n";
     for (size_t i = 0; i < coords.size(); ++i) {
-      const auto &point = coords[i].value.asMap();
+      const auto &point = coords[i].asMapping();
       std::cout << "Point " << (i + 1) << ": ";
-      std::cout << "x=" << point.at("x").value.asInt() << ", ";
-      std::cout << "y=" << point.at("y").value.asInt();
+      std::cout << "x=" << point.at("x").asInteger() << ", ";
+      std::cout << "y=" << point.at("y").asInteger();
       std::cout << "\n";
     }
     std::cout << "\n";
 
     // Print categories and items
-    const auto &categories = config.at("categories").value.asSeq();
+    const auto &categories = config.at("categories").asSequence();
     std::cout << "Categories:\n";
     std::cout << "----------\n";
     for (size_t i = 0; i < categories.size(); ++i) {
-      const auto &cat = categories[i].value.asMap();
-      std::cout << "Category: " << cat.at("name").value.asString() << "\n";
-      const auto &items = cat.at("items").value.asSeq();
+      const auto &cat = categories[i].asMapping();
+      std::cout << "Category: " << cat.at("name").asString() << "\n";
+      const auto &items = cat.at("items").asSequence();
       for (size_t j = 0; j < items.size(); ++j) {
-        const auto &item = items[j].value.asMap();
+        const auto &item = items[j].asMapping();
         std::cout << "  - ";
-        std::cout << item.at("name").value.asString();
-        std::cout << " ($" << item.at("price").value.asDouble() << ")";
+        std::cout << item.at("name").asString();
+        std::cout << " ($" << item.at("price").asDouble() << ")";
         std::cout << "\n";
       }
     }
     std::cout << "\n";
 
     // Print nested_arrays
-    const auto &nested = config.at("nested_arrays").value.asSeq();
+    const auto &nested = config.at("nested_arrays").asSequence();
     std::cout << "Nested Arrays:\n";
     std::cout << "--------------\n";
     for (size_t i = 0; i < nested.size(); ++i) {
-      const auto &arr = nested[i].value.asSeq();
+      const auto &arr = nested[i].asSequence();
       std::cout << "[ ";
       for (size_t j = 0; j < arr.size(); ++j) {
-        if (arr[j].value.isString()) {
-          std::cout << '"' << arr[j].value.asString() << '"';
-        } else if (arr[j].value.isInt()) {
-          std::cout << arr[j].value.asInt();
-        } else if (arr[j].value.isDouble()) {
-          std::cout << arr[j].value.asDouble();
+        if (arr[j].isString()) {
+          std::cout << '"' << arr[j].asString() << '"';
+        } else if (arr[j].isInteger()) {
+          std::cout << arr[j].asInteger();
+        } else if (arr[j].isDouble()) {
+          std::cout << arr[j].asDouble();
         } else {
           std::cout << "?";
         }

@@ -32,34 +32,25 @@ int main() {
   std::cout << "=== Multiline Strings Parser Example ===\n\n";
 
   try {
-    YamlParser parser;
-    parser.parse("yaml_files/multiline_strings.yaml");
-    if (parser.isSequenceRoot()) {
-      std::cerr << "Error: Expected root to be a map, but got sequence\n";
-      return 1;
-    }
-
-    const auto &config = parser.root();
+    const YamlValue document = YamlParser().parseFile("yaml_files/multiline_strings.yaml");
+    const auto     &config   = document.asMapping();
 
     // description (literal block)
-    displayString("Description (|)", config.at("description").value.asString());
+    displayString("Description (|)", config.at("description").asString());
 
     // folded_description (folded block)
-    displayString("Folded Description (>)", config.at("folded_description").value.asString());
+    displayString("Folded Description (>)", config.at("folded_description").asString());
 
     // inline_string
-    displayString("Inline String (quoted)", config.at("inline_string").value.asString());
+    displayString("Inline String (quoted)", config.at("inline_string").asString());
 
     // unquoted_string
-    displayString("Unquoted String", config.at("unquoted_string").value.asString());
+    displayString("Unquoted String", config.at("unquoted_string").asString());
 
     // multiline_message
-    displayString("Multiline Message (|)", config.at("multiline_message").value.asString());
+    displayString("Multiline Message (|)", config.at("multiline_message").asString());
 
-    std::cout << "Note: This parser may have limitations with multiline string styles.\n";
-    std::cout << "Literal (|) and folded (>) styles might not preserve formatting exactly.\n";
-    std::cout << "See the limitation/ folder for detailed tests of multiline string features.\n\n";
-    std::cout << "✅ Successfully parsed multiline strings (with limitations noted)!\n";
+    std::cout << "✅ Successfully parsed multiline strings!\n";
   } catch (const std::exception &e) {
     std::cerr << "❌ Error: " << e.what() << std::endl;
     return 1;

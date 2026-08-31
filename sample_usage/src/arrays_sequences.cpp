@@ -9,50 +9,44 @@ int main() {
   std::cout << "=== Arrays and Sequences Parser Example ===\n\n";
 
   try {
-    YamlParser parser;
-    parser.parse("yaml_files/arrays_sequences.yaml");
-    if (parser.isSequenceRoot()) {
-      std::cerr << "Error: Expected root to be a map, but got sequence\n";
-      return 1;
-    }
-
-    const auto &config = parser.root();
+    const YamlValue document = YamlParser().parseFile("yaml_files/arrays_sequences.yaml");
+    const auto     &config   = document.asMapping();
 
     // Process fruits array
-    const auto &fruits = config.at("fruits").value.asSeq();
+    const auto &fruits = config.at("fruits").asSequence();
 
     std::cout << "Fruits List:\n";
     std::cout << "------------\n";
     for (size_t i = 0; i < fruits.size(); ++i) {
-      std::cout << (i + 1) << ". " << fruits[i].value.asString() << "\n";
+      std::cout << (i + 1) << ". " << fruits[i].asString() << "\n";
     }
     std::cout << "\n";
 
     // Process numbers array
-    const auto &numbers = config.at("numbers").value.asSeq();
+    const auto &numbers = config.at("numbers").asSequence();
 
     std::cout << "Numbers: ";
     for (const auto &num : numbers) {
-      std::cout << num.value.asInt() << " ";
+      std::cout << num.asInteger() << " ";
     }
     std::cout << "\n\n";
 
     // Process mixed array
-    const auto &mixed = config.at("mixed_array").value.asSeq();
+    const auto &mixed = config.at("mixed_array").asSequence();
 
     std::cout << "Mixed Array:\n";
     std::cout << "------------\n";
     for (size_t i = 0; i < mixed.size(); ++i) {
       std::cout << "Item " << (i + 1) << ": ";
 
-      if (mixed[i].value.isInt()) {
-        std::cout << "Integer: " << mixed[i].value.asInt();
-      } else if (mixed[i].value.isDouble()) {
-        std::cout << "Double: " << mixed[i].value.asDouble();
-      } else if (mixed[i].value.isString()) {
-        std::cout << "String: \"" << mixed[i].value.asString() << "\"";
-      } else if (mixed[i].value.isBool()) {
-        std::cout << "Boolean: " << (mixed[i].value.asBool() ? "true" : "false");
+      if (mixed[i].isInteger()) {
+        std::cout << "Integer: " << mixed[i].asInteger();
+      } else if (mixed[i].isDouble()) {
+        std::cout << "Double: " << mixed[i].asDouble();
+      } else if (mixed[i].isString()) {
+        std::cout << "String: \"" << mixed[i].asString() << "\"";
+      } else if (mixed[i].isBoolean()) {
+        std::cout << "Boolean: " << (mixed[i].asBoolean() ? "true" : "false");
       } else {
         std::cout << "Unknown type";
       }
@@ -61,15 +55,15 @@ int main() {
     std::cout << "\n";
 
     // Process users array (array of objects)
-    const auto &users = config.at("users").value.asSeq();
+    const auto &users = config.at("users").asSequence();
     std::cout << "Users:\n";
     std::cout << "------\n";
     for (size_t i = 0; i < users.size(); ++i) {
-      const auto &user = users[i].value.asMap();
+      const auto &user = users[i].asMapping();
       std::cout << "User " << (i + 1) << ":\n";
-      std::cout << "  Name: " << user.at("name").value.asString() << "\n";
-      std::cout << "  Age: " << user.at("age").value.asInt() << "\n";
-      std::cout << "  Active: " << (user.at("active").value.asBool() ? "Yes" : "No") << "\n";
+      std::cout << "  Name: " << user.at("name").asString() << "\n";
+      std::cout << "  Age: " << user.at("age").asInteger() << "\n";
+      std::cout << "  Active: " << (user.at("active").asBoolean() ? "Yes" : "No") << "\n";
       std::cout << "\n";
     }
 

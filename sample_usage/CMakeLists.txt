@@ -1,122 +1,36 @@
-cmake_minimum_required(VERSION 3.14)
+set(YAMLPARSER_EXAMPLES
+  anchors_merge
+  app_config
+  arrays_sequences
+  basic_config
+  complex_data
+  data_types
+  multiline_strings
+  nested_arrays
+  nested_maps
+  nested_structures
+)
 
-# Policies
-if(POLICY CMP0135)
-  cmake_policy(SET CMP0135 NEW) # suppress FetchContent timestamp warnings
-endif()
+set(YAMLPARSER_EXAMPLE_TARGETS "")
+foreach(example_name IN LISTS YAMLPARSER_EXAMPLES)
+  set(example_target yamlparser_example_${example_name})
+  add_executable(${example_target} src/${example_name}.cpp)
+  target_link_libraries(${example_target} PRIVATE yamlparser::yamlparser)
+  target_compile_features(${example_target} PRIVATE cxx_std_14)
+  list(APPEND YAMLPARSER_EXAMPLE_TARGETS ${example_target})
+endforeach()
 
-# Project
-project(YamlParserSamples LANGUAGES CXX)
+add_custom_target(examples DEPENDS ${YAMLPARSER_EXAMPLE_TARGETS})
 
-# Language standard
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+add_custom_target(run_examples
+  COMMAND ${CMAKE_COMMAND} -E echo "Running YAML parser examples"
+  DEPENDS examples
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
 
-# ------------------------------------------------------------------
-# Library visibility
-# ------------------------------------------------------------------
-# When built standalone, create the library; when included from root,
-# reuse the existing 'yamlparser' target.
-if(NOT TARGET yamlparser)
-  add_library(yamlparser STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/YamlParser.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/YamlElement.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/YamlHelperFunctions.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/YamlPrinter.cpp
+foreach(example_name IN LISTS YAMLPARSER_EXAMPLES)
+  add_custom_command(TARGET run_examples POST_BUILD
+    COMMAND $<TARGET_FILE:yamlparser_example_${example_name}>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
-  target_include_directories(yamlparser PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include)
-endif()
-
-# ------------------------------------------------------------------
-# Helper: add one sample executable with consistent flags/output
-# ------------------------------------------------------------------
-function(add_sample_executable sample_name)
-  add_executable(${sample_name} src/${sample_name}.cpp)
-  target_link_libraries(${sample_name} PRIVATE yamlparser)
-
-  # Warnings/sanitizers (Debug-only suggested)
-  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(${sample_name} PRIVATE -Wall -Wextra -Wpedantic)
-    target_compile_options(${sample_name} PRIVATE $<$<CONFIG:Debug>:-fsanitize=address,undefined>)
-    target_link_options   (${sample_name} PRIVATE $<$<CONFIG:Debug>:-fsanitize=address,undefined>)
-  elseif(MSVC)
-    target_compile_options(${sample_name} PRIVATE /W4 /permissive-)
-  endif()
-
-  # Put executables in the SOURCE tree: sample_usage
-  set_target_properties(${sample_name} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY                 ${CMAKE_CURRENT_SOURCE_DIR}/bin
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG           ${CMAKE_CURRENT_SOURCE_DIR}/bin
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE         ${CMAKE_CURRENT_SOURCE_DIR}/bin
-    RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO  ${CMAKE_CURRENT_SOURCE_DIR}/bin
-    RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL      ${CMAKE_CURRENT_SOURCE_DIR}/bin
-  )
-endfunction()
-
-# ------------------------------------------------------------------
-# Samples
-# ------------------------------------------------------------------
-add_sample_executable(basic_config)
-add_sample_executable(nested_structures)
-add_sample_executable(arrays_sequences)
-add_sample_executable(anchors_merge)
-add_sample_executable(nested_maps)
-add_sample_executable(multiline_strings)
-add_sample_executable(data_types)
-add_sample_executable(app_config)
-add_sample_executable(complex_data)
-add_sample_executable(nested_arrays)
-
-# ------------------------------------------------------------------
-# Build-all aggregator (kept for clarity)
-# ------------------------------------------------------------------
-add_custom_target(all_samples
-  DEPENDS
-    basic_config
-    nested_structures
-    arrays_sequences
-    anchors_merge
-    nested_maps
-    multiline_strings
-    data_types
-    app_config
-    complex_data
-    nested_arrays
-)
-
-# Requested name to build all samples
-add_custom_target(sample_usage
-  DEPENDS all_samples
-  COMMENT "Build all sample usage executables"
-)
-
-# ------------------------------------------------------------------
-# Run all samples from the sample_usage/ source dir so 'yaml_files/...' works.
-# cmake -E chdir scopes the CWD only for that one command (no need to cd back).
-# ------------------------------------------------------------------
-add_custom_target(run_all_sample_usage
-  DEPENDS all_samples
-  COMMAND ${CMAKE_COMMAND} -E echo "Running all YAML parser samples..."
-  COMMAND ${CMAKE_COMMAND} -E echo "=================================="
-
-  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:basic_config>
-  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:nested_structures>
-  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:arrays_sequences>
-  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:anchors_merge>
-  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:nested_maps>
-  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:multiline_strings>
-  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:data_types>
-  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:app_config>
-  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:complex_data>
-  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} $<TARGET_FILE:nested_arrays>
-
-  USES_TERMINAL
-  COMMENT "Run all sample executables from sample_usage/"
-)
-
-# legacy alias for backward compatibility
-add_custom_target(run_all_samples
-  DEPENDS run_all_sample_usage
-  COMMENT "Alias: use 'run_all_sample_usage'"
-)
+endforeach()

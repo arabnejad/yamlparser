@@ -1,7 +1,7 @@
 # CodeCoverage.cmake — define coverage targets driven by gcovr
 #
 # Usage:
-#   - Enable coverage flags in your build (e.g. ENABLE_COVERAGE=ON in your root).
+#   - Enable coverage flags with YAMLPARSER_ENABLE_COVERAGE=ON.
 #   - Include this file from the root CMakeLists.txt *after* tests are added:
 #       include(${CMAKE_SOURCE_DIR}/CodeCoverage.cmake)
 #   - Targets provided:
@@ -11,7 +11,7 @@
 #       gcovr_clean    -> removes ${CMAKE_BINARY_DIR}/coverage
 #
 # Notes:
-#   - Only active when using GCC/Clang AND ENABLE_COVERAGE is ON.
+#   - Only active when using GCC/Clang and coverage is enabled.
 #   - Automatically depends on 'run_tests' (or 'tests') if that target exists.
 #   - Excludes common build/system paths and tests/ by default.
 
@@ -24,8 +24,8 @@ if(NOT (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang"))
   return()
 endif()
 
-if(NOT ENABLE_COVERAGE)
-  message(STATUS "Coverage: ENABLE_COVERAGE is OFF; skipping coverage targets.")
+if(NOT YAMLPARSER_ENABLE_COVERAGE)
+  message(STATUS "Coverage: YAMLPARSER_ENABLE_COVERAGE is OFF; skipping coverage targets.")
   return()
 endif()
 
@@ -34,7 +34,7 @@ endif()
 # ------------------------------------------------------------------
 find_program(GCOVR gcovr)
 if(NOT GCOVR)
-  message(FATAL_ERROR "Coverage: 'gcovr' not found. Install gcovr or disable ENABLE_COVERAGE.")
+  message(FATAL_ERROR "Coverage: 'gcovr' not found. Install gcovr or disable YAMLPARSER_ENABLE_COVERAGE.")
 endif()
 
 # ------------------------------------------------------------------

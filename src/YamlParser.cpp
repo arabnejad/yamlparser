@@ -1,630 +1,638 @@
-﻿#include "YamlParser.hpp"
-#include "YamlException.hpp"
+#include "YamlParser.hpp"
 
+#include <cctype>
 #include <fstream>
-#include <sstream>
-#include <iostream>
 #include <regex>
 #include <set>
-#include "YamlPrinter.hpp"
-
-#include "YamlHelperFunctions.hpp"
+#include <sstream>
+#include <utility>
+#include <vector>
 
 namespace yamlparser {
+namespace {
 
-/**
- * @brief Get the root mapping
- * @return Reference to the root mapping
- * @warning Only valid when isSequenceRoot() returns false
- */
-const YamlMap &YamlParser::root() const {
-  return m_data;
+std::string trimWhitespace(const std::string &text) {
+  const std::size_t first = text.find_first_not_of(" \t\r\n");
+  if (first == std::string::npos)
+    return "";
+  const std::size_t last = text.find_last_not_of(" \t\r\n");
+  return text.substr(first, last - first + 1U);
 }
 
-/**
- * @brief Get the root sequence
- * @return Reference to the root sequence
- * @warning Only valid when isSequenceRoot() returns true
- */
-const YamlSeq &YamlParser::sequenceRoot() const {
-  return m_sequenceData;
+std::size_t indentationOf(const std::string &line) {
+  const std::size_t firstContent = line.find_first_not_of(" \t");
+  return firstContent == std::string::npos ? line.size() : firstContent;
 }
 
-/**
- * @brief Check if the root element is a sequence
- * @return true if root is a sequence, false if it's a mapping
- */
-bool YamlParser::isSequenceRoot() const {
-  return m_sequenceRoot;
+std::string contentOf(const std::string &line) {
+  return line.substr(indentationOf(line));
 }
 
-/**
- * @brief Parses a YAML file and loads its contents into the parser
- * @param filename Path to the YAML file to parse
- * @throws FileException if file cannot be opened or read
- * @throws SyntaxException if YAML syntax is invalid
- * @details This function:
- *          1. Opens and reads the specified YAML file
- *          2. Detects if the root element is a sequence or mapping
- *          3. For sequence root: stores in m_sequenceData and sets m_sequenceRoot flag
- *          4. For mapping root: stores in m_data and clears m_sequenceRoot flag
- *          5. Handles empty files gracefully
- */
-void YamlParser::parse(const std::string &filename) {
-  std::ifstream file(filename);
-  if (!file.is_open()) {
-    throw FileException(filename);
+bool isSequenceMarker(const std::string &text) {
+  return text == "-" ||
+         (text.size() > 1U && text.front() == '-' && std::isspace(static_cast<unsigned char>(text[1])) != 0);
+}
+
+std::string removeInlineComment(const std::string &text) {
+  bool insideSingleQuotes = false;
+  bool insideDoubleQuotes = false;
+  bool escapedCharacter   = false;
+
+  for (std::size_t index = 0; index < text.size(); ++index) {
+    const char character = text[index];
+    if (insideDoubleQuotes && escapedCharacter) {
+      escapedCharacter = false;
+      continue;
+    }
+    if (insideDoubleQuotes && character == '\\') {
+      escapedCharacter = true;
+      continue;
+    }
+    if (character == '\'' && !insideDoubleQuotes) {
+      insideSingleQuotes = !insideSingleQuotes;
+      continue;
+    }
+    if (character == '"' && !insideSingleQuotes) {
+      insideDoubleQuotes = !insideDoubleQuotes;
+      continue;
+    }
+    const bool startsComment = character == '#' && !insideSingleQuotes && !insideDoubleQuotes &&
+                               (index == 0U || std::isspace(static_cast<unsigned char>(text[index - 1U])) != 0);
+    if (startsComment)
+      return trimWhitespace(text.substr(0, index));
+  }
+  return trimWhitespace(text);
+}
+
+std::size_t findMappingSeparator(const std::string &text) {
+  bool insideSingleQuotes = false;
+  bool insideDoubleQuotes = false;
+  bool escapedCharacter   = false;
+  int  squareBracketDepth = 0;
+
+  for (std::size_t index = 0; index < text.size(); ++index) {
+    const char character = text[index];
+    if (insideDoubleQuotes && escapedCharacter) {
+      escapedCharacter = false;
+      continue;
+    }
+    if (insideDoubleQuotes && character == '\\') {
+      escapedCharacter = true;
+      continue;
+    }
+    if (character == '\'' && !insideDoubleQuotes) {
+      insideSingleQuotes = !insideSingleQuotes;
+      continue;
+    }
+    if (character == '"' && !insideSingleQuotes) {
+      insideDoubleQuotes = !insideDoubleQuotes;
+      continue;
+    }
+    if (insideSingleQuotes || insideDoubleQuotes)
+      continue;
+    if (character == '[') {
+      ++squareBracketDepth;
+      continue;
+    }
+    if (character == ']') {
+      --squareBracketDepth;
+      continue;
+    }
+    if (character == ':' && squareBracketDepth == 0) {
+      const bool hasValidSeparator =
+          index + 1U == text.size() || std::isspace(static_cast<unsigned char>(text[index + 1U])) != 0;
+      if (hasValidSeparator)
+        return index;
+    }
+  }
+  return std::string::npos;
+}
+
+int hexadecimalDigitValue(char character) {
+  if (character >= '0' && character <= '9')
+    return character - '0';
+  if (character >= 'a' && character <= 'f')
+    return character - 'a' + 10;
+  if (character >= 'A' && character <= 'F')
+    return character - 'A' + 10;
+  return -1;
+}
+
+void appendUtf8(std::string &output, unsigned int codePoint) {
+  if (codePoint <= 0x7FU) {
+    output.push_back(static_cast<char>(codePoint));
+  } else if (codePoint <= 0x7FFU) {
+    output.push_back(static_cast<char>(0xC0U | (codePoint >> 6U)));
+    output.push_back(static_cast<char>(0x80U | (codePoint & 0x3FU)));
+  } else {
+    output.push_back(static_cast<char>(0xE0U | (codePoint >> 12U)));
+    output.push_back(static_cast<char>(0x80U | ((codePoint >> 6U) & 0x3FU)));
+    output.push_back(static_cast<char>(0x80U | (codePoint & 0x3FU)));
+  }
+}
+
+std::string parseQuotedString(const std::string &text, std::size_t lineNumber) {
+  if (text.size() < 2U || text.back() != text.front())
+    throw SyntaxException("Unterminated quoted string", lineNumber);
+
+  const char        quote = text.front();
+  const std::string body  = text.substr(1U, text.size() - 2U);
+  std::string       result;
+  result.reserve(body.size());
+
+  if (quote == '\'') {
+    for (std::size_t index = 0; index < body.size(); ++index) {
+      if (body[index] == '\'' && index + 1U < body.size() && body[index + 1U] == '\'')
+        ++index;
+      result.push_back(body[index]);
+    }
+    return result;
   }
 
-  std::string              line;
-  std::vector<std::string> lines;
-  while (std::getline(file, line)) {
-    lines.push_back(line);
+  for (std::size_t index = 0; index < body.size(); ++index) {
+    const char character = body[index];
+    if (character != '\\') {
+      result.push_back(character);
+      continue;
+    }
+    if (index + 1U >= body.size())
+      throw SyntaxException("Incomplete escape sequence", lineNumber);
+
+    const char escaped = body[++index];
+    switch (escaped) {
+    case 'n':
+      result.push_back('\n');
+      break;
+    case 'r':
+      result.push_back('\r');
+      break;
+    case 't':
+      result.push_back('\t');
+      break;
+    case '"':
+      result.push_back('"');
+      break;
+    case '\\':
+      result.push_back('\\');
+      break;
+    case 'u': {
+      if (index + 4U >= body.size())
+        throw SyntaxException("Incomplete Unicode escape sequence", lineNumber);
+      unsigned int codePoint = 0U;
+      for (std::size_t digit = 0; digit < 4U; ++digit) {
+        const int value = hexadecimalDigitValue(body[index + 1U + digit]);
+        if (value < 0)
+          throw SyntaxException("Invalid Unicode escape sequence", lineNumber);
+        codePoint = codePoint * 16U + static_cast<unsigned int>(value);
+      }
+      index += 4U;
+      appendUtf8(result, codePoint);
+      break;
+    }
+    default:
+      throw SyntaxException(std::string("Unsupported escape sequence: \\") + escaped, lineNumber);
+    }
+  }
+  return result;
+}
+
+class DocumentParser {
+public:
+  explicit DocumentParser(std::vector<std::string> lines) : m_lines(std::move(lines)) {}
+
+  YamlValue parseDocument() {
+    skipIgnoredLines();
+    if (atEnd())
+      return YamlValue(YamlMapping());
+
+    if (trimWhitespace(m_lines[m_nextLine]) == "---") {
+      ++m_nextLine;
+      skipIgnoredLines();
+    }
+    if (atEnd())
+      return YamlValue(YamlMapping());
+
+    const std::size_t rootIndentation = indentationOf(m_lines[m_nextLine]);
+    YamlValue         document        = parseBlock(rootIndentation);
+
+    skipIgnoredLines();
+    if (!atEnd() && trimWhitespace(m_lines[m_nextLine]) == "...") {
+      ++m_nextLine;
+      skipIgnoredLines();
+    }
+    if (!atEnd())
+      throw SyntaxException("Unexpected content after the root value", currentLineNumber());
+    return document;
   }
 
-  size_t idx = 0;
-  // First pass: detect if the root element is a sequence (starts with '-')
-  // Iterate through lines until we find non-empty content
-  for (const auto &l : lines) {
-    std::string trimmed = trim(l);
-    if (trimmed.empty()) // Skip empty or whitespace-only lines
-      continue;
-    if (!trimmed.empty() && trimmed[0] == '#') // Skip comment lines
-      continue;
-    if (trimmed[0] == '-') {
-      // Found sequence indicator at root level - parse entire sequence
-      YamlSeq seq    = parseSeq(lines, idx, 0);
-      m_sequenceRoot = true;
-      m_sequenceData = seq;
-      m_data.clear();
+private:
+  std::vector<std::string>         m_lines;
+  std::size_t                      m_nextLine = 0U;
+  std::map<std::string, YamlValue> m_anchors;
+
+  bool atEnd() const noexcept {
+    return m_nextLine >= m_lines.size();
+  }
+  std::size_t currentLineNumber() const noexcept {
+    return m_nextLine + 1U;
+  }
+
+  bool lineIsIgnored(std::size_t lineIndex) const {
+    const std::string content = trimWhitespace(m_lines[lineIndex]);
+    return content.empty() || content.front() == '#';
+  }
+
+  void skipIgnoredLines() {
+    while (!atEnd() && lineIsIgnored(m_nextLine))
+      ++m_nextLine;
+  }
+
+  YamlValue parseBlock(std::size_t expectedIndentation) {
+    skipIgnoredLines();
+    if (atEnd())
+      return YamlValue();
+
+    const std::size_t actualIndentation = indentationOf(m_lines[m_nextLine]);
+    if (actualIndentation != expectedIndentation)
+      throw SyntaxException("Unexpected indentation", currentLineNumber());
+
+    const std::string content = removeInlineComment(contentOf(m_lines[m_nextLine]));
+    if (content == "{}") {
+      ++m_nextLine;
+      return YamlValue(YamlMapping());
+    }
+    if (content == "[]") {
+      ++m_nextLine;
+      return YamlValue(YamlSequence());
+    }
+    if (isSequenceMarker(content))
+      return YamlValue(parseSequence(expectedIndentation));
+    if (findMappingSeparator(content) != std::string::npos)
+      return YamlValue(parseMapping(expectedIndentation));
+
+    const std::size_t lineNumber = currentLineNumber();
+    ++m_nextLine;
+    return parseValueOrNestedBlock(content, expectedIndentation, lineNumber);
+  }
+
+  YamlMapping parseMapping(std::size_t expectedIndentation) {
+    YamlMapping           mapping;
+    std::set<std::string> explicitlyDefinedKeys;
+    parseRemainingMappingEntries(expectedIndentation, mapping, explicitlyDefinedKeys);
+    return mapping;
+  }
+
+  YamlMapping parseMappingWithFirstEntry(const std::string &firstEntry, std::size_t mappingIndentation,
+                                         std::size_t lineNumber) {
+    YamlMapping           mapping;
+    std::set<std::string> explicitlyDefinedKeys;
+    parseMappingEntry(firstEntry, mappingIndentation, lineNumber, mapping, explicitlyDefinedKeys);
+    parseRemainingMappingEntries(mappingIndentation, mapping, explicitlyDefinedKeys);
+    return mapping;
+  }
+
+  void parseRemainingMappingEntries(std::size_t expectedIndentation, YamlMapping &mapping,
+                                    std::set<std::string> &explicitlyDefinedKeys) {
+    while (true) {
+      skipIgnoredLines();
+      if (atEnd())
+        return;
+
+      const std::size_t actualIndentation = indentationOf(m_lines[m_nextLine]);
+      if (actualIndentation < expectedIndentation)
+        return;
+      if (actualIndentation > expectedIndentation)
+        throw SyntaxException("Unexpected indentation in mapping", currentLineNumber());
+
+      const std::string entry = removeInlineComment(contentOf(m_lines[m_nextLine]));
+      if (isSequenceMarker(entry))
+        return;
+
+      const std::size_t lineNumber = currentLineNumber();
+      ++m_nextLine;
+      parseMappingEntry(entry, expectedIndentation, lineNumber, mapping, explicitlyDefinedKeys);
+    }
+  }
+
+  void parseMappingEntry(const std::string &entry, std::size_t entryIndentation, std::size_t lineNumber,
+                         YamlMapping &mapping, std::set<std::string> &explicitlyDefinedKeys) {
+    const std::size_t separator = findMappingSeparator(entry);
+    if (separator == std::string::npos)
+      throw SyntaxException("Expected a 'key: value' mapping entry", lineNumber);
+
+    const std::string rawKey = trimWhitespace(entry.substr(0, separator));
+    if (rawKey.empty())
+      throw SyntaxException("Mapping key cannot be empty", lineNumber);
+
+    const std::string key =
+        (rawKey.front() == '\'' || rawKey.front() == '"') ? parseQuotedString(rawKey, lineNumber) : rawKey;
+    const std::string valueText = removeInlineComment(entry.substr(separator + 1U));
+
+    if (key == "<<") {
+      mergeAnchoredMapping(valueText, mapping, lineNumber);
       return;
-    } else {
-      break;
+    }
+    if (!explicitlyDefinedKeys.insert(key).second)
+      throw SyntaxException("Duplicate mapping key: '" + key + "'", lineNumber);
+
+    mapping[key] = parseValueOrNestedBlock(valueText, entryIndentation, lineNumber);
+  }
+
+  YamlSequence parseSequence(std::size_t expectedIndentation) {
+    YamlSequence sequence;
+    parseRemainingSequenceItems(expectedIndentation, sequence);
+    return sequence;
+  }
+
+  YamlSequence parseSequenceWithFirstItem(const std::string &firstItem, std::size_t sequenceIndentation,
+                                          std::size_t lineNumber) {
+    YamlSequence sequence;
+    sequence.push_back(parseSequenceItem(firstItem, sequenceIndentation, lineNumber));
+    parseRemainingSequenceItems(sequenceIndentation, sequence);
+    return sequence;
+  }
+
+  void parseRemainingSequenceItems(std::size_t expectedIndentation, YamlSequence &sequence) {
+    while (true) {
+      skipIgnoredLines();
+      if (atEnd())
+        return;
+
+      const std::size_t actualIndentation = indentationOf(m_lines[m_nextLine]);
+      if (actualIndentation < expectedIndentation)
+        return;
+      if (actualIndentation > expectedIndentation)
+        throw SyntaxException("Unexpected indentation in sequence", currentLineNumber());
+
+      const std::string content = removeInlineComment(contentOf(m_lines[m_nextLine]));
+      if (!isSequenceMarker(content))
+        return;
+
+      const std::size_t lineNumber = currentLineNumber();
+      const std::string itemText   = trimWhitespace(content.substr(1U));
+      ++m_nextLine;
+      sequence.push_back(parseSequenceItem(itemText, expectedIndentation, lineNumber));
     }
   }
-  // Parse as a mapping (default case)
-  idx            = 0;
-  m_sequenceRoot = false;
-  m_data         = parseMap(lines, idx, 0);
-  m_sequenceData.clear();
-}
 
-/**
- * @brief Validates the structure of a mapping line and extracts key-value pair
- * @param line The line to validate and parse
- * @param lineNumber Current line number for error reporting
- * @param key Output parameter for the extracted key
- * @param value Output parameter for the extracted value
- * @throws SyntaxException if line structure is invalid
- */
-void YamlParser::validateMapStructure(const std::string &line, size_t lineNumber, std::string &key,
-                                      std::string &value) {
-  auto pos = line.find(":");
-  if (pos == std::string::npos) {
-    throw SyntaxException("Missing ':' in key-value pair: '" + line + "'", lineNumber + 1);
+  YamlValue parseSequenceItem(const std::string &itemText, std::size_t sequenceIndentation, std::size_t lineNumber) {
+    if (itemText.empty())
+      return parseNestedBlockOrNull(sequenceIndentation);
+
+    if (isSequenceMarker(itemText)) {
+      const std::string firstNestedItem = trimWhitespace(itemText.substr(1U));
+      return YamlValue(parseSequenceWithFirstItem(firstNestedItem, sequenceIndentation + 2U, lineNumber));
+    }
+
+    if (findMappingSeparator(itemText) != std::string::npos)
+      return YamlValue(parseMappingWithFirstEntry(itemText, sequenceIndentation + 2U, lineNumber));
+
+    return parseValueOrNestedBlock(itemText, sequenceIndentation, lineNumber);
   }
 
-  key   = trim(line.substr(0, pos));
-  value = trim(line.substr(pos + 1));
-
-  if (key.empty()) {
-    throw SyntaxException("Empty key in key-value pair", lineNumber + 1);
-  }
-}
-
-/**
- * @brief Handles syntax errors during map parsing with context information
- * @param error The error message
- * @param context Additional context about the error
- * @param lineNumber The line number where the error occurred
- * @throws SyntaxException with detailed error information
- */
-void YamlParser::handleMapSyntaxError(const std::string &error, const std::string &context, size_t lineNumber) {
-  std::string detailedError = error;
-  if (!context.empty()) {
-    detailedError += " (Context: " + context + ")";
-  }
-  throw SyntaxException(detailedError, lineNumber + 1);
-}
-
-/**
- * @brief Parses a single map entry and adds it to the map
- * @param lines Vector of all lines in the YAML content
- * @param idx Current parsing position (modified as parsing progresses)
- * @param indent Current indentation level
- * @param curIndent Indentation of the current line
- * @param line The current line content
- * @param map The map to add the entry to
- * @return true if entry was processed, false if parsing should break
- */
-bool YamlParser::parseMapEntry(const std::vector<std::string> &lines, size_t &idx, int indent,
-                               std::string::size_type curIndent, const std::string &line, YamlMap &map) {
-  // Skip empty lines
-  if (line.empty() || line.find_first_not_of(" \t") == std::string::npos) {
-    idx++;
-    return true;
+  YamlValue parseValueOrNestedBlock(const std::string &valueText, std::size_t parentIndentation,
+                                    std::size_t lineNumber) {
+    const std::string value = trimWhitespace(valueText);
+    if (value.empty())
+      return parseNestedBlockOrNull(parentIndentation);
+    if (value.front() == '&')
+      return parseAnchoredValue(value, parentIndentation, lineNumber);
+    if (value.front() == '*')
+      return resolveAlias(value, lineNumber);
+    if (value.front() == '|' || value.front() == '>')
+      return parseBlockScalar(value, parentIndentation);
+    return parseInlineValue(value, lineNumber);
   }
 
-  // Skip comment lines
-  std::string trimmed_line = trim(line);
-  if (!trimmed_line.empty() && trimmed_line[0] == '#') {
-    idx++;
-    return true;
+  YamlValue parseNestedBlockOrNull(std::size_t parentIndentation) {
+    skipIgnoredLines();
+    if (atEnd() || indentationOf(m_lines[m_nextLine]) <= parentIndentation)
+      return YamlValue();
+    return parseBlock(indentationOf(m_lines[m_nextLine]));
   }
 
-  // Check indentation level
-  if (static_cast<int>(curIndent) < indent) {
-    return false; // Break from parsing
+  YamlValue parseAnchoredValue(const std::string &anchorExpression, std::size_t parentIndentation,
+                               std::size_t lineNumber) {
+    std::size_t nameEnd = 1U;
+    while (nameEnd < anchorExpression.size() &&
+           std::isspace(static_cast<unsigned char>(anchorExpression[nameEnd])) == 0)
+      ++nameEnd;
+
+    const std::string anchorName = anchorExpression.substr(1U, nameEnd - 1U);
+    if (anchorName.empty())
+      throw SyntaxException("Anchor name cannot be empty", lineNumber);
+
+    const std::string anchoredText  = trimWhitespace(anchorExpression.substr(nameEnd));
+    YamlValue         anchoredValue = parseValueOrNestedBlock(anchoredText, parentIndentation, lineNumber);
+    m_anchors[anchorName]           = anchoredValue;
+    return anchoredValue;
   }
 
-  std::string processedLine = line.substr(curIndent);
+  YamlValue resolveAlias(const std::string &aliasExpression, std::size_t lineNumber) const {
+    const std::string aliasName = trimWhitespace(aliasExpression.substr(1U));
+    if (aliasName.empty() || aliasName.find_first_of(" \t") != std::string::npos)
+      throw SyntaxException("Invalid alias", lineNumber);
 
-  // Handle sequence lines within a map
-  if (processedLine[0] == '-') {
-    if (idx > 0) {
-      std::string prevLine = lines[idx - 1].substr(lines[idx - 1].find_first_not_of(" \t"));
-      auto        prevPos  = prevLine.find(":");
-      if (prevPos != std::string::npos) {
-        std::string key = trim(prevLine.substr(0, prevPos));
-        if (map.find(key) == map.end()) {
-          map[key] = YamlItem(YamlElement(parseSeq(lines, idx, static_cast<int>(curIndent))));
-        }
+    const auto anchor = m_anchors.find(aliasName);
+    if (anchor == m_anchors.end())
+      throw KeyException("*" + aliasName);
+    return anchor->second;
+  }
+
+  void mergeAnchoredMapping(const std::string &aliasExpression, YamlMapping &targetMapping,
+                            std::size_t lineNumber) const {
+    const YamlValue source = resolveAlias(aliasExpression, lineNumber);
+    if (!source.isMapping())
+      throw TypeException("Merge alias must refer to a mapping");
+
+    for (const auto &entry : source.asMapping())
+      targetMapping.insert(entry);
+  }
+
+  YamlValue parseInlineValue(const std::string &value, std::size_t lineNumber) {
+    if (value.empty())
+      return YamlValue();
+    if (value.front() == '\'' || value.front() == '"')
+      return YamlValue(parseQuotedString(value, lineNumber));
+    if (value == "[]")
+      return YamlValue(YamlSequence());
+    if (value == "{}")
+      return YamlValue(YamlMapping());
+    if (value.front() == '[') {
+      if (value.back() != ']')
+        throw SyntaxException("Inline sequence is missing its closing bracket", lineNumber);
+      return YamlValue(parseFlowSequence(value, lineNumber));
+    }
+    if (value == "null" || value == "~")
+      return YamlValue();
+    if (value == "true")
+      return YamlValue(true);
+    if (value == "false")
+      return YamlValue(false);
+
+    static const std::regex integerPattern("^[+-]?\\d+$");
+    static const std::regex doublePattern("^[+-]?(?:\\d+\\.\\d*|\\.\\d+|\\d+)(?:[eE][+-]?\\d+)?$");
+
+    if (std::regex_match(value, integerPattern)) {
+      try {
+        return YamlValue(std::stoi(value));
+      } catch (const std::exception &) {
+        throw ConversionException(value, "integer");
       }
     }
-    idx++;
-    return true;
+    if (std::regex_match(value, doublePattern)) {
+      try {
+        return YamlValue(std::stod(value));
+      } catch (const std::exception &) {
+        throw ConversionException(value, "double");
+      }
+    }
+    return YamlValue(value);
   }
 
-  // Parse key-value pair
-  std::string key, value;
-  validateMapStructure(processedLine, idx, key, value);
-  // Check for duplicate key
-  if (map.find(key) != map.end()) {
-    throw SyntaxException("Duplicate mapping key: '" + key + "'", idx + 1);
-  }
+  YamlSequence parseFlowSequence(const std::string &expression, std::size_t lineNumber) {
+    const std::string body = expression.substr(1U, expression.size() - 2U);
+    if (trimWhitespace(body).empty())
+      return YamlSequence();
 
-  // Handle different value types
-  if (value.empty() || value == "" || value == "\n" || value == "\r" || value == "\r\n") {
-    // Check for nested content
-    size_t lookahead = idx + 1;
-    if (lookahead < lines.size() && lines[lookahead].find_first_not_of(" \t") > curIndent) {
-      std::string nextLine    = lines[lookahead];
-      auto        nextIndent  = nextLine.find_first_not_of(" \t");
-      std::string nextContent = nextLine.substr(nextIndent);
+    YamlSequence sequence;
+    std::string  currentItem;
+    bool         insideSingleQuotes = false;
+    bool         insideDoubleQuotes = false;
+    bool         escapedCharacter   = false;
+    int          nestedDepth        = 0;
 
-      idx++;
-      if (nextContent[0] == '-') {
-        map[key] = YamlItem(YamlElement(parseSeq(lines, idx, static_cast<int>(nextIndent))));
+    for (char character : body) {
+      if (insideDoubleQuotes && escapedCharacter) {
+        currentItem.push_back(character);
+        escapedCharacter = false;
+        continue;
+      }
+      if (insideDoubleQuotes && character == '\\') {
+        currentItem.push_back(character);
+        escapedCharacter = true;
+        continue;
+      }
+      if (character == '\'' && !insideDoubleQuotes)
+        insideSingleQuotes = !insideSingleQuotes;
+      else if (character == '"' && !insideSingleQuotes)
+        insideDoubleQuotes = !insideDoubleQuotes;
+      else if (!insideSingleQuotes && !insideDoubleQuotes && character == '[')
+        ++nestedDepth;
+      else if (!insideSingleQuotes && !insideDoubleQuotes && character == ']')
+        --nestedDepth;
+
+      if (character == ',' && !insideSingleQuotes && !insideDoubleQuotes && nestedDepth == 0) {
+        appendFlowSequenceItem(currentItem, lineNumber, sequence);
+        currentItem.clear();
       } else {
-        map[key] = YamlItem(YamlElement(parseMap(lines, idx, static_cast<int>(nextIndent))));
+        currentItem.push_back(character);
+      }
+    }
+
+    if (insideSingleQuotes || insideDoubleQuotes || nestedDepth != 0)
+      throw SyntaxException("Malformed inline sequence", lineNumber);
+    appendFlowSequenceItem(currentItem, lineNumber, sequence);
+    return sequence;
+  }
+
+  void appendFlowSequenceItem(const std::string &itemText, std::size_t lineNumber, YamlSequence &sequence) {
+    const std::string item = trimWhitespace(itemText);
+    if (item.empty())
+      throw SyntaxException("Inline sequence contains an empty item", lineNumber);
+    sequence.push_back(parseInlineValue(item, lineNumber));
+  }
+
+  YamlValue parseBlockScalar(const std::string &header, std::size_t parentIndentation) {
+    const char style          = header.front();
+    const char chompingMethod = header.size() > 1U ? header[1] : '\0';
+
+    struct ScalarLine {
+      std::string text;
+      bool        moreIndented;
+    };
+
+    std::vector<ScalarLine> scalarLines;
+    std::size_t             contentIndentation = std::string::npos;
+
+    while (!atEnd()) {
+      const std::string &line = m_lines[m_nextLine];
+      if (trimWhitespace(line).empty()) {
+        scalarLines.push_back(ScalarLine{"", false});
+        ++m_nextLine;
+        continue;
+      }
+
+      const std::size_t lineIndentation = indentationOf(line);
+      if (lineIndentation <= parentIndentation)
+        break;
+      if (contentIndentation == std::string::npos)
+        contentIndentation = lineIndentation;
+
+      const std::size_t textStart = line.size() < contentIndentation ? line.size() : contentIndentation;
+      scalarLines.push_back(ScalarLine{line.substr(textStart), lineIndentation > contentIndentation});
+      ++m_nextLine;
+    }
+
+    std::string result;
+    if (style == '|') {
+      for (const ScalarLine &line : scalarLines) {
+        result += line.text;
+        result.push_back('\n');
       }
     } else {
-      // Treat as explicit null (empty string)
-      map[key] = YamlItem(YamlElement(std::string("")));
-      idx++;
-    }
-  } else if (isMultilineLiteral(value)) {
-    map[key] = parseMultilineLiteral(lines, idx, static_cast<int>(curIndent), value[0]);
-  } else if (isAnchor(value)) {
-    map[key] = parseAnchor(value, lines, idx, m_anchors, *this);
-  } else if (isMergeKey(key, value)) {
-    parseMergeKey(value, map, m_anchors);
-    idx++;
-  } else if (isAlias(value)) {
-    map[key] = parseAlias(value, m_anchors);
-    idx++;
-  } else if (isInlineSeq(value)) {
-    map[key] = parseInlineSeq(value);
-    idx++;
-  } else if (!value.empty() && value.front() == '[' && value.back() != ']') {
-    throw SyntaxException("Malformed inline sequence: missing closing bracket");
-  } else {
-    map[key] = YamlItem(YamlElement(parseScalar(value)));
-    idx++;
-  }
-
-  return true;
-}
-
-/**
- * @brief Parses a YAML mapping (dictionary/object) from a sequence of lines
- * @param lines Vector of all lines in the YAML content
- * @param idx Current parsing position (modified as parsing progresses)
- * @param indent Expected indentation level for this mapping
- * @return YamlMap containing the parsed key-value pairs
- * @details Handles various YAML mapping features:
- *          - Nested mappings and sequences
- *          - Multiline literals (| and >)
- *          - Anchors (&) and aliases (*)
- *          - Merge keys (<<)
- *          - Inline sequences
- *          - Empty/null values
- *          - Proper indentation-based nesting
- */
-YamlMap YamlParser::parseMap(const std::vector<std::string> &lines, size_t &idx, int indent) {
-  YamlMap map;
-  // Track explicitly defined keys in this mapping block (not merged)
-  std::set<std::string> explicitKeys;
-
-  while (idx < lines.size()) {
-    std::string            line      = lines[idx];
-    std::string::size_type curIndent = line.find_first_not_of(" \t");
-
-    // Custom parseMapEntry logic to allow explicit key tracking
-    // (inlined from parseMapEntry for this block)
-    // ...existing code...
-    // Skip empty lines
-    if (line.empty() || line.find_first_not_of(" \t") == std::string::npos) {
-      idx++;
-      continue;
-    }
-    // Skip comment lines
-    std::string trimmed_line = trim(line);
-    if (!trimmed_line.empty() && trimmed_line[0] == '#') {
-      idx++;
-      continue;
-    }
-    // Check indentation level
-    if (static_cast<int>(curIndent) < indent) {
-      break;
-    }
-    std::string processedLine = line.substr(curIndent);
-    // Handle sequence lines within a map
-    if (processedLine[0] == '-') {
-      if (idx > 0) {
-        std::string prevLine = lines[idx - 1].substr(lines[idx - 1].find_first_not_of(" \t"));
-        auto        prevPos  = prevLine.find(":");
-        if (prevPos != std::string::npos) {
-          std::string key = trim(prevLine.substr(0, prevPos));
-          if (map.find(key) == map.end()) {
-            map[key] = YamlItem(YamlElement(parseSeq(lines, idx, static_cast<int>(curIndent))));
-            explicitKeys.insert(key);
-          }
+      for (std::size_t index = 0; index < scalarLines.size(); ++index) {
+        if (index > 0U) {
+          const ScalarLine &previous = scalarLines[index - 1U];
+          const ScalarLine &current  = scalarLines[index];
+          result.push_back(
+              previous.text.empty() || current.text.empty() || previous.moreIndented || current.moreIndented ? '\n'
+                                                                                                             : ' ');
         }
+        result += scalarLines[index].text;
       }
-      idx++;
-      continue;
+      if (!scalarLines.empty())
+        result.push_back('\n');
     }
-    // Parse key-value pair
-    std::string key, value;
-    validateMapStructure(processedLine, idx, key, value);
-    // Check for duplicate key: only error if explicitly defined in this block
-    if (explicitKeys.find(key) != explicitKeys.end()) {
-      throw SyntaxException("Duplicate mapping key: '" + key + "'", idx + 1);
+
+    if (chompingMethod == '-') {
+      while (!result.empty() && result.back() == '\n')
+        result.pop_back();
+    } else if (chompingMethod != '+') {
+      while (!result.empty() && result.back() == '\n')
+        result.pop_back();
+      if (!scalarLines.empty())
+        result.push_back('\n');
     }
-    // Handle different value types
-    if (value.empty() || value == "" || value == "\n" || value == "\r" || value == "\r\n") {
-      // Check for nested content
-      size_t lookahead = idx + 1;
-      if (lookahead < lines.size() && lines[lookahead].find_first_not_of(" \t") > curIndent) {
-        std::string nextLine    = lines[lookahead];
-        auto        nextIndent  = nextLine.find_first_not_of(" \t");
-        std::string nextContent = nextLine.substr(nextIndent);
-        idx++;
-        if (nextContent[0] == '-') {
-          map[key] = YamlItem(YamlElement(parseSeq(lines, idx, static_cast<int>(nextIndent))));
-        } else {
-          map[key] = YamlItem(YamlElement(parseMap(lines, idx, static_cast<int>(nextIndent))));
-        }
-      } else {
-        // Treat as explicit null (empty string)
-        map[key] = YamlItem(YamlElement(std::string("")));
-        idx++;
-      }
-      explicitKeys.insert(key);
-    } else if (isMultilineLiteral(value)) {
-      map[key] = parseMultilineLiteral(lines, idx, static_cast<int>(curIndent), value[0]);
-      explicitKeys.insert(key);
-    } else if (isAnchor(value)) {
-      map[key] = parseAnchor(value, lines, idx, m_anchors, *this);
-      explicitKeys.insert(key);
-    } else if (isMergeKey(key, value)) {
-      parseMergeKey(value, map, m_anchors);
-      idx++;
-      // Do not add '<<' to explicitKeys
-    } else if (isAlias(value)) {
-      map[key] = parseAlias(value, m_anchors);
-      idx++;
-      explicitKeys.insert(key);
-    } else if (isInlineSeq(value)) {
-      map[key] = parseInlineSeq(value);
-      idx++;
-      explicitKeys.insert(key);
-    } else if (!value.empty() && value.front() == '[' && value.back() != ']') {
-      throw SyntaxException("Malformed inline sequence: missing closing bracket");
-    } else {
-      map[key] = YamlItem(YamlElement(parseScalar(value)));
-      idx++;
-      explicitKeys.insert(key);
-    }
+    return YamlValue(result);
   }
-  return map;
+};
+
+std::vector<std::string> readLines(std::istream &input) {
+  std::vector<std::string> lines;
+  std::string              line;
+  while (std::getline(input, line))
+    lines.push_back(line);
+  return lines;
 }
 
-/**
- * @brief Validates the structure of a sequence line
- * @param line The line to validate
- * @param lineNumber Current line number for error reporting
- * @throws SyntaxException if line structure is invalid
- */
-void YamlParser::validateSeqStructure(const std::string &line, size_t lineNumber) {
-  if (line.empty()) {
-    throw SyntaxException("Empty sequence line", lineNumber + 1);
-  }
+} // namespace
 
-  if (line[0] != '-') {
-    throw SyntaxException("Invalid sequence format: expected '-' at line start", lineNumber + 1);
-  }
+YamlValue YamlParser::parseFile(const std::string &filename) const {
+  std::ifstream input(filename);
+  if (!input.is_open())
+    throw FileException(filename);
+  return parse(input);
 }
 
-/**
- * @brief Handles syntax errors during sequence parsing with context information
- * @param error The error message
- * @param context Additional context about the error
- * @param lineNumber The line number where the error occurred
- * @throws SyntaxException with detailed error information
- */
-void YamlParser::handleSeqSyntaxError(const std::string &error, const std::string &context, size_t lineNumber) {
-  std::string detailedError = error;
-  if (!context.empty()) {
-    detailedError += " (Context: " + context + ")";
-  }
-  throw SyntaxException(detailedError, lineNumber + 1);
+YamlValue YamlParser::parse(std::istream &input) const {
+  DocumentParser parser(readLines(input));
+  return parser.parseDocument();
 }
 
-/**
- * @brief Parses a single sequence element and adds it to the sequence
- * @param lines Vector of all lines in the YAML content
- * @param idx Current parsing position (modified as parsing progresses)
- * @param indent Current indentation level
- * @param curIndent Indentation of the current line
- * @param line The current line content
- * @param seq The sequence to add the element to
- * @return true if element was processed, false if parsing should break
- */
-bool YamlParser::parseSeqElement(const std::vector<std::string> &lines, size_t &idx, int indent,
-                                 std::string::size_type curIndent, const std::string &line, YamlSeq &seq) {
-  // Skip empty lines
-  if (line.empty() || line.find_first_not_of(" \t") == std::string::npos) {
-    idx++;
-    return true;
-  }
-
-  // Skip comment lines
-  std::string trimmed_line = trim(line);
-  if (!trimmed_line.empty() && trimmed_line[0] == '#') {
-    idx++;
-    return true;
-  }
-
-  // Check indentation level
-  if (static_cast<int>(curIndent) < indent) {
-    return false; // Break from parsing
-  }
-
-  std::string processedLine = line.substr(curIndent);
-
-  // Validate sequence structure
-  if (processedLine[0] != '-') {
-    return false; // Not a sequence line, break parsing
-  }
-
-  std::string value = trim(processedLine.substr(1));
-
-  // Check if this is a mapping block (next line is more indented)
-  size_t lookahead = idx + 1;
-  if (lookahead < lines.size()) {
-    std::string nextLine   = lines[lookahead];
-    auto        nextIndent = nextLine.find_first_not_of(" \t");
-
-    if (nextIndent != std::string::npos && nextIndent > curIndent) {
-      // This is a mapping block. Handle case where sequence item has content
-      YamlMap itemMap;
-
-      // If the sequence item has content, parse it as the first key-value pair
-      if (!value.empty()) {
-        auto pos = value.find(":");
-        if (pos != std::string::npos) {
-          std::string key = trim(value.substr(0, pos));
-          std::string val = trim(value.substr(pos + 1));
-          itemMap[key]    = YamlItem(parseScalar(val));
-        }
-      }
-
-      // Parse the indented lines as additional key-value pairs
-      idx++;
-      YamlMap indentedMap = parseMap(lines, idx, static_cast<int>(nextIndent));
-
-      // Merge the indented map into the item map
-      for (const auto &pair : indentedMap) {
-        itemMap[pair.first] = pair.second;
-      }
-
-      seq.push_back(YamlItem(YamlElement(itemMap)));
-      return true; // parseMap will have updated idx
-    }
-  }
-
-  // Not a mapping block, parse as scalar or inline sequence if not empty
-  if (!value.empty()) {
-    if (isInlineSeq(value)) {
-      seq.push_back(parseInlineSeq(value));
-    } else {
-      seq.push_back(YamlItem(parseScalar(value)));
-    }
-  } else {
-    seq.push_back(YamlItem(YamlElement(std::string(""))));
-  }
-  idx++;
-  return true;
-}
-
-/**
- * @brief Parses a YAML sequence (array/list) from a sequence of lines
- * @param lines Vector of all lines in the YAML content
- * @param idx Current parsing position (modified as parsing progresses)
- * @param indent Expected indentation level for this sequence
- * @return YamlSeq containing the parsed sequence items
- * @details Handles:
- *          - Simple scalar elements
- *          - Nested mappings as elements
- *          - Empty elements
- *          - Proper indentation-based nesting
- */
-YamlSeq YamlParser::parseSeq(const std::vector<std::string> &lines, size_t &idx, int indent) {
-  YamlSeq seq;
-
-  while (idx < lines.size()) {
-    std::string            line      = lines[idx];
-    std::string::size_type curIndent = line.find_first_not_of(" \t");
-
-    if (!parseSeqElement(lines, idx, indent, curIndent, line, seq)) {
-      break;
-    }
-  }
-  return seq;
-}
-
-/**
- * @brief Parses a YAML scalar value into its appropriate type
- * @param value The string to parse
- * @return YamlElement containing the parsed value
- * @details Handles these scalar types:
- *          - Booleans (true/false)
- *          - Integers (matched by regex ^-?\d+$)
- *          - Floating point numbers (matched by regex ^-?\d*\.\d+$)
- *          - Quoted strings (both single and double quotes)
- *          - Plain strings (anything else)
- *          Also handles:
- *          - Comment removal (strips everything after #)
- *          - Whitespace trimming
- *          - Quote stripping from quoted strings
- */
-YamlElement YamlParser::parseScalar(const std::string &value) {
-  std::string cleanValue = preprocessScalarValue(value);
-
-  // Try primitive types first (bool, numeric)
-  YamlElement primitiveResult = tryParsePrimitive(cleanValue);
-
-  // If it's not a string result, we successfully parsed a primitive
-  if (!primitiveResult.isString()) {
-    return primitiveResult;
-  }
-
-  // Handle quoted/unquoted strings
-  return YamlElement(processQuotedString(cleanValue));
-}
-
-/**
- * @brief Preprocess scalar value by removing comments and trimming
- * @param value Raw scalar text
- * @return Cleaned scalar text
- */
-std::string YamlParser::preprocessScalarValue(const std::string &value) {
-  // 1) Trim outer whitespace.
-  std::string s = trim(value);
-  if (s.empty())
-    return s;
-
-  // 2) If quoted, do not strip comments.
-  if (s.front() == '\'' || s.front() == '\"') {
-    return s; // leave quoted content intact; quotes handled later by processQuotedString(...)
-  }
-
-  // 3) Unquoted: strip trailing comment and trim again
-  auto hash = s.find('#');
-  if (hash != std::string::npos) {
-    s.resize(hash);
-  }
-  return trim(s);
-}
-
-/**
- * @brief Attempt to parse primitive types (bool, numeric)
- * @param cleanValue Preprocessed scalar text
- * @return Parsed primitive element or string if not primitive
- */
-YamlElement YamlParser::tryParsePrimitive(const std::string &cleanValue) {
-  // Handle boolean values
-  if (cleanValue == "true")
-    return YamlElement(true);
-  if (cleanValue == "false")
-    return YamlElement(false);
-
-  // Try numeric parsing
-  return parseNumericValue(cleanValue);
-}
-
-/**
- * @brief Parse numeric values (int, double)
- * @param value Scalar text to parse as number
- * @return Parsed numeric element or string if not numeric
- */
-YamlElement YamlParser::parseNumericValue(const std::string &value) {
-  static const std::regex int_re("^[+-]?\\d+$");
-  static const std::regex double_re("^[+-]?(?:\\d+\\.\\d*|\\.\\d+|\\d+)(?:[eE][+-]?\\d+)?$");
-
-  // Try integer parsing
-  if (std::regex_match(value, int_re)) {
-    try {
-      return YamlElement(std::stoi(value));
-    } catch (const std::out_of_range &) {
-      throw ConversionException(value, "integer (value out of range)");
-    } catch (const std::invalid_argument &) {
-      throw ConversionException(value, "integer (invalid format)");
-    }
-  }
-
-  // Try double parsing
-  if (std::regex_match(value, double_re)) {
-    try {
-      return YamlElement(std::stod(value));
-    } catch (const std::out_of_range &) {
-      throw ConversionException(value, "double (value out of range)");
-    } catch (const std::invalid_argument &) {
-      throw ConversionException(value, "double (invalid format)");
-    }
-  }
-
-  // Return as string if not numeric
-  return YamlElement(value);
-}
-
-/**
- * @brief Process quoted strings by removing surrounding quotes
- * @param value String that may have surrounding quotes
- * @return String with quotes removed if present
- */
-std::string YamlParser::processQuotedString(const std::string &value) {
-  // Strip surrounding quotes if present
-  if ((value.size() >= 2) &&
-      ((value.front() == '\'' && value.back() == '\'') || (value.front() == '"' && value.back() == '"'))) {
-    return value.substr(1, value.size() - 2);
-  }
-  return value;
-}
-
-/**
- * @brief Retrieves a value from the parsed YAML data by its key
- * @param key The key to look up in the root mapping
- * @return Reference to the found YamlItem, or to an empty item if not found
- * @details Only works when the root is a mapping (not a sequence)
- *          Returns a static empty item when:
- *          - The root is a sequence (m_sequenceRoot is true)
- *          - The key is not found in the mapping
- *          The returned reference remains valid as long as the parser exists
- */
-const YamlItem &YamlParser::get(const std::string &key) const {
-  if (m_sequenceRoot) {
-    throw StructureException("Cannot access key '" + key + "' on sequence root");
-  }
-
-  auto it = m_data.find(key);
-  if (it != m_data.end()) {
-    return it->second;
-  }
-
-  throw KeyException(key);
+YamlValue YamlParser::parseText(const std::string &yamlText) const {
+  std::istringstream input(yamlText);
+  return parse(input);
 }
 
 } // namespace yamlparser
