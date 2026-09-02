@@ -5,6 +5,9 @@ A small, dependency-free YAML parser for C++14 configuration files.
 ## Features
 
 - Null, string, integer, double, and boolean values
+- YAML core-schema boolean spellings
+- Common double-quoted escapes: `\b`, `\t`, `\n`, `\f`, `\r`, `\"`, `\/`, and `\\`
+- Literal UTF-8 text
 - Block and inline sequences
 - Nested sequences and mappings
 - Literal (`|`) and folded (`>`) block strings
@@ -102,6 +105,23 @@ value.isMapping();
 
 Use `at(index)` and `at(key)` to navigate sequences and mappings. Invalid types, keys, and indices throw exceptions derived from `YamlException`.
 
+### UTF-8 text and quoted escapes
+
+Write Unicode characters directly in UTF-8. `YamlValue` preserves their bytes in its `std::string` value:
+
+```yaml
+currency: "£"
+language: "日本語"
+status: "✓"
+emoji: "😀"
+```
+
+Double-quoted strings support the common escapes `\b`, `\t`, `\n`, `\f`, `\r`, `\"`, `\/`, and `\\`. Numeric Unicode escapes such as `\u00A3` and `\U0001F600` produce a syntax error; write `£` and `😀` directly instead.
+
+Double-quoted strings must close on the same line. Use literal (`|`) or folded (`>`) block strings for multiline text.
+
+`YamlPrinter` throws `TypeException` when a string contains a control character that cannot be represented using the supported escapes.
+
 ## CMake integration
 
 ```cmake
@@ -124,15 +144,16 @@ This project implements a practical YAML subset rather than the complete YAML sp
 
 Current limitations:
 
-- Boolean values are recognized only as lowercase `true` and `false`. Spellings such as `True`, `FALSE`, `yes`, and `no` remain strings.
-- Double-quoted strings support `\n`, `\r`, `\t`, `\\`, `\"`, and `\uXXXX`, but not YAML's complete escape set.
+- Numeric Unicode escapes (`\xXX`, `\uXXXX`, and `\UXXXXXXXX`) and YAML named escapes (`\N`, `\_`, `\L`, and `\P`) are not supported. Literal UTF-8 text is supported.
+- The uncommon escapes `\0`, `\a`, `\v`, `\e`, and backslash-space are not supported.
+- Double-quoted strings cannot span physical lines and do not support backslash line continuation. Use `|` or `>` block strings for multiline text.
 - Tags and directives are not interpreted.
 - Mapping keys must be scalar values; YAML complex keys are not supported.
 - Flow sequences such as `[one, two]` are supported, but the only supported flow mapping is the empty mapping `{}`.
 - A stream may contain only one YAML document. The optional `---` and `...` markers are supported for that document.
 - A merge key may reference one mapping alias, such as `<<: *defaults`; merge lists such as `<<: [*first, *second]` are not supported.
 
-Earlier versions also had problems with merge keys followed by inline comments, nested block sequences, escape processing, and distinguishing null values from empty strings. Those cases are supported and covered by the current test suite.
+Earlier versions also had problems with boolean spellings, merge keys followed by inline comments, nested block sequences, common escape processing, and distinguishing null values from empty strings. Those cases are supported and covered by the current test suite.
 
 ## License
 

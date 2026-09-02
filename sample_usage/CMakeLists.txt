@@ -9,6 +9,7 @@ set(YAMLPARSER_EXAMPLES
   nested_arrays
   nested_maps
   nested_structures
+  utf8_text
 )
 
 set(YAMLPARSER_EXAMPLE_TARGETS "")

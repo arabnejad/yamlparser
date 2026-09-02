@@ -1,0 +1,6 @@
+# Write Unicode characters directly as UTF-8 text.
+utf8_examples:
+  currency: "£"
+  language: "日本語"
+  status: "✓"
+  emoji: "😀"

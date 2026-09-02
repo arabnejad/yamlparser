@@ -1,0 +1,6 @@
+# Literal UTF-8 text is preserved without escape decoding.
+utf8_examples:
+  currency: "£"
+  language: "日本語"
+  status: "✓"
+  emoji: "😀"

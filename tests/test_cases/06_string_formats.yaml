@@ -5,7 +5,7 @@ strings:
   empty: ""
   special_chars:
     quotes: "String with 'mixed' \"quotes\""
-    escapes: "Tab\t and newline\n and unicode \u0026"
+    escapes: "Tab\t and newline\n and ampersand &"
     multiline: "This string\nspans multiple\nlines"
 
 special_values:

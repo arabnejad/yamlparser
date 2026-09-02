@@ -108,92 +108,107 @@ std::size_t findMappingSeparator(const std::string &text) {
   return std::string::npos;
 }
 
-int hexadecimalDigitValue(char character) {
-  if (character >= '0' && character <= '9')
-    return character - '0';
-  if (character >= 'a' && character <= 'f')
-    return character - 'a' + 10;
-  if (character >= 'A' && character <= 'F')
-    return character - 'A' + 10;
-  return -1;
-}
-
-void appendUtf8(std::string &output, unsigned int codePoint) {
-  if (codePoint <= 0x7FU) {
-    output.push_back(static_cast<char>(codePoint));
-  } else if (codePoint <= 0x7FFU) {
-    output.push_back(static_cast<char>(0xC0U | (codePoint >> 6U)));
-    output.push_back(static_cast<char>(0x80U | (codePoint & 0x3FU)));
-  } else {
-    output.push_back(static_cast<char>(0xE0U | (codePoint >> 12U)));
-    output.push_back(static_cast<char>(0x80U | ((codePoint >> 6U) & 0x3FU)));
-    output.push_back(static_cast<char>(0x80U | (codePoint & 0x3FU)));
-  }
-}
-
 std::string parseQuotedString(const std::string &text, std::size_t lineNumber) {
-  if (text.size() < 2U || text.back() != text.front())
-    throw SyntaxException("Unterminated quoted string", lineNumber);
+  if (text.empty() || (text.front() != '\'' && text.front() != '"'))
+    throw SyntaxException("Expected a quoted string", lineNumber);
 
-  const char        quote = text.front();
-  const std::string body  = text.substr(1U, text.size() - 2U);
-  std::string       result;
-  result.reserve(body.size());
+  const char  quote = text.front();
+  std::string result;
+  result.reserve(text.size() - 1U);
 
-  if (quote == '\'') {
-    for (std::size_t index = 0; index < body.size(); ++index) {
-      if (body[index] == '\'' && index + 1U < body.size() && body[index + 1U] == '\'')
+  for (std::size_t index = 1U; index < text.size(); ++index) {
+    const char character = text[index];
+
+    if (character == quote) {
+      if (quote == '\'' && index + 1U < text.size() && text[index + 1U] == '\'') {
+        result.push_back('\'');
         ++index;
-      result.push_back(body[index]);
+        continue;
+      }
+      if (!trimWhitespace(text.substr(index + 1U)).empty())
+        throw SyntaxException("Unexpected content after quoted string", lineNumber);
+      return result;
     }
-    return result;
-  }
 
-  for (std::size_t index = 0; index < body.size(); ++index) {
-    const char character = body[index];
-    if (character != '\\') {
+    if (quote == '\'' || character != '\\') {
       result.push_back(character);
       continue;
     }
-    if (index + 1U >= body.size())
+
+    if (index + 1U >= text.size())
       throw SyntaxException("Incomplete escape sequence", lineNumber);
 
-    const char escaped = body[++index];
+    const char escaped = text[++index];
     switch (escaped) {
-    case 'n':
-      result.push_back('\n');
+    case 'b': // YAML \b: backspace character (U+0008).
+      result.push_back('\b');
       break;
-    case 'r':
-      result.push_back('\r');
-      break;
-    case 't':
+    case 't': // YAML \t: horizontal tab (U+0009).
       result.push_back('\t');
       break;
-    case '"':
+    case 'n': // YAML \n: line feed (U+000A).
+      result.push_back('\n');
+      break;
+    case 'f': // YAML \f: form feed (U+000C).
+      result.push_back('\f');
+      break;
+    case 'r': // YAML \r: carriage return (U+000D).
+      result.push_back('\r');
+      break;
+    case '"': // YAML \": a literal double quote (U+0022).
       result.push_back('"');
       break;
-    case '\\':
+    case '/': // YAML \/: a literal slash (U+002F).
+      result.push_back('/');
+      break;
+    case '\\': // YAML \\: a literal backslash (U+005C).
       result.push_back('\\');
       break;
-    case 'u': {
-      if (index + 4U >= body.size())
-        throw SyntaxException("Incomplete Unicode escape sequence", lineNumber);
-      unsigned int codePoint = 0U;
-      for (std::size_t digit = 0; digit < 4U; ++digit) {
-        const int value = hexadecimalDigitValue(body[index + 1U + digit]);
-        if (value < 0)
-          throw SyntaxException("Invalid Unicode escape sequence", lineNumber);
-        codePoint = codePoint * 16U + static_cast<unsigned int>(value);
-      }
-      index += 4U;
-      appendUtf8(result, codePoint);
-      break;
-    }
-    default:
+    default: // This parser supports only the common escapes listed above.
       throw SyntaxException(std::string("Unsupported escape sequence: \\") + escaped, lineNumber);
     }
   }
-  return result;
+
+  throw SyntaxException("Quoted strings must close on the same line", lineNumber);
+}
+
+YamlValue resolvePlainScalar(const std::string &value) {
+  if (value == "null" || value == "~")
+    return YamlValue();
+  if (value == "true" || value == "True" || value == "TRUE")
+    return YamlValue(true);
+  if (value == "false" || value == "False" || value == "FALSE")
+    return YamlValue(false);
+
+  // static compiles each pattern once, and const prevents later changes.
+  // ^ and $ require the entire value to match. [+-]? allows one optional
+  // sign, and \d+ requires one or more decimal digits.
+  static const std::regex integerPattern(R"(^[+-]?\d+$)");
+
+  // (?:...) groups without capturing, and | separates these number forms:
+  //   \d+\.\d*  digits followed by a decimal point, such as "12." or "12.5";
+  //   \.\d+      a decimal point followed by digits, such as ".5";
+  //   \d+         digits without a decimal point, such as "12".
+  // (?:[eE][+-]?\d+)? adds an optional exponent such as "e3" or "E-2".
+  // Plain integers also match this expression, but integerPattern handles
+  // them first.
+  static const std::regex floatingPointPattern(R"(^[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?$)");
+
+  if (std::regex_match(value, integerPattern)) {
+    try {
+      return YamlValue(std::stoi(value));
+    } catch (const std::exception &) {
+      throw ConversionException(value, "integer");
+    }
+  }
+  if (std::regex_match(value, floatingPointPattern)) {
+    try {
+      return YamlValue(std::stod(value));
+    } catch (const std::exception &) {
+      throw ConversionException(value, "double");
+    }
+  }
+  return YamlValue(value);
 }
 
 class DocumentParser {
@@ -463,31 +478,7 @@ private:
         throw SyntaxException("Inline sequence is missing its closing bracket", lineNumber);
       return YamlValue(parseFlowSequence(value, lineNumber));
     }
-    if (value == "null" || value == "~")
-      return YamlValue();
-    if (value == "true")
-      return YamlValue(true);
-    if (value == "false")
-      return YamlValue(false);
-
-    static const std::regex integerPattern("^[+-]?\\d+$");
-    static const std::regex doublePattern("^[+-]?(?:\\d+\\.\\d*|\\.\\d+|\\d+)(?:[eE][+-]?\\d+)?$");
-
-    if (std::regex_match(value, integerPattern)) {
-      try {
-        return YamlValue(std::stoi(value));
-      } catch (const std::exception &) {
-        throw ConversionException(value, "integer");
-      }
-    }
-    if (std::regex_match(value, doublePattern)) {
-      try {
-        return YamlValue(std::stod(value));
-      } catch (const std::exception &) {
-        throw ConversionException(value, "double");
-      }
-    }
-    return YamlValue(value);
+    return resolvePlainScalar(value);
   }
 
   YamlSequence parseFlowSequence(const std::string &expression, std::size_t lineNumber) {

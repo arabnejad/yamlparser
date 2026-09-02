@@ -1,6 +1,6 @@
 # Usage examples
 
-The examples cover scalar values, mappings, sequences, nested structures, block strings, anchors, aliases, and merge keys.
+The examples cover scalar values, mappings, sequences, nested structures, block strings, literal UTF-8 text, anchors, aliases, and merge keys.
 
 Build or run every example from the repository root:
 
@@ -23,3 +23,4 @@ Each program reads its corresponding file from `sample_usage/yaml_files` and dem
 | `app_config` | Application configuration |
 | `complex_data` | Larger nested documents |
 | `nested_arrays` | Inline and nested sequences |
+| `utf8_text` | Literal UTF-8 text such as `£`, `日本語`, `✓`, and `😀` |

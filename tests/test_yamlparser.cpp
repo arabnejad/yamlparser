@@ -95,9 +95,9 @@ TEST(YamlParserTest, ParsesNullAndQuotedEmptyStringAsDifferentTypes) {
   EXPECT_TRUE(document.at("empty").asString().empty());
 }
 
-TEST(YamlParserTest, DecodesQuotedEscapesAndUnicode) {
-  const YamlValue document = YamlParser().parseText("text: \"tab\\tline\\nampersand \\u0026\"\n");
-  EXPECT_EQ(document.at("text").asString(), "tab\tline\nampersand &");
+TEST(YamlParserTest, DecodesCommonEscapesAndPreservesUtf8) {
+  const YamlValue document = YamlParser().parseText(u8"text: \"tab\\tline\\npound £\"\n");
+  EXPECT_EQ(document.at("text").asString(), u8"tab\tline\npound £");
 }
 
 TEST(YamlParserTest, ReportsFileAndAliasErrors) {

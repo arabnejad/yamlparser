@@ -91,7 +91,21 @@ TEST(YamlParserFixtureTest, DistinguishesBasicTypes) {
   const YamlValue document = parseFixture("09_basic_types.yaml");
 
   EXPECT_TRUE(document.at("booleans").at("true_values").at(0U).asBoolean());
-  EXPECT_EQ(document.at("booleans").at("true_values").at(1U).asString(), "True");
+  EXPECT_TRUE(document.at("booleans").at("true_values").at(1U).asBoolean());
+  EXPECT_TRUE(document.at("booleans").at("true_values").at(2U).asBoolean());
+  EXPECT_FALSE(document.at("booleans").at("false_values").at(0U).asBoolean());
+  EXPECT_FALSE(document.at("booleans").at("false_values").at(1U).asBoolean());
+  EXPECT_FALSE(document.at("booleans").at("false_values").at(2U).asBoolean());
   EXPECT_TRUE(document.at("null_values").at("explicit_null").isNull());
   EXPECT_EQ(document.at("dates").at("simple_date").asString(), "2025-07-26");
+}
+
+TEST(YamlParserFixtureTest, PreservesLiteralUtf8Text) {
+  const YamlValue  document     = parseFixture("11_utf8_text.yaml");
+  const YamlValue &utf8Examples = document.at("utf8_examples");
+
+  EXPECT_EQ(utf8Examples.at("currency").asString(), u8"£");
+  EXPECT_EQ(utf8Examples.at("language").asString(), u8"日本語");
+  EXPECT_EQ(utf8Examples.at("status").asString(), u8"✓");
+  EXPECT_EQ(utf8Examples.at("emoji").asString(), u8"😀");
 }

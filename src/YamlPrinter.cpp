@@ -1,4 +1,5 @@
 #include "YamlPrinter.hpp"
+#include "YamlException.hpp"
 
 #include <cctype>
 #include <iomanip>
@@ -13,11 +14,32 @@ std::string indentation(std::size_t width) {
   return std::string(width, ' ');
 }
 
+bool isBooleanSpelling(const std::string &value) {
+  return value == "true" || value == "True" || value == "TRUE" || value == "false" || value == "False" ||
+         value == "FALSE";
+}
+
+bool containsCharactersRequiringEscapes(const std::string &value) {
+  bool containsEscapedCharacter = false;
+  for (char rawCharacter : value) {
+    const unsigned char character = static_cast<unsigned char>(rawCharacter);
+    if (character == '\b' || character == '\t' || character == '\n' || character == '\f' || character == '\r')
+      containsEscapedCharacter = true;
+    else if (character < 0x20U || character == 0x7FU)
+      throw TypeException("String contains a control character that this YAML subset cannot print");
+  }
+  return containsEscapedCharacter;
+}
+
 bool requiresQuotes(const std::string &value) {
-  if (value.empty() || value == "null" || value == "~" || value == "true" || value == "false")
+  if (value.empty() || value == "null" || value == "~" || isBooleanSpelling(value))
     return true;
 
-  static const std::regex numericPattern("^[+-]?(?:\\d+|(?:\\d+\\.\\d*|\\.\\d+|\\d+)(?:[eE][+-]?\\d+)?)$");
+  // static compiles the pattern once, and const prevents later changes.
+  // Match every integer, decimal, or scientific form recognized by the
+  // parser. Quoting keeps a numeric-looking string stored as a string.
+  // Examples: "12", "-12.5", ".5", "12e3", and "1.5E-2".
+  static const std::regex numericPattern(R"(^[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?$)");
   if (std::regex_match(value, numericPattern))
     return true;
 
@@ -31,30 +53,36 @@ bool requiresQuotes(const std::string &value) {
   return value.find_first_of(":#{}[],\n\r\t\"'") != std::string::npos;
 }
 
-std::string quoteString(const std::string &value) {
-  const bool containsControlCharacter = value.find_first_of("\n\r\t") != std::string::npos;
-  if (!containsControlCharacter) {
-    std::string quoted("'");
-    for (char character : value) {
-      quoted.push_back(character);
-      if (character == '\'')
-        quoted.push_back('\'');
-    }
-    quoted.push_back('\'');
-    return quoted;
-  }
-
-  std::string quoted("\"");
+std::string quoteWithSingleQuotes(const std::string &value) {
+  std::string quoted("'");
   for (char character : value) {
+    quoted.push_back(character);
+    if (character == '\'')
+      quoted.push_back('\'');
+  }
+  quoted.push_back('\'');
+  return quoted;
+}
+
+std::string quoteWithEscapedCharacters(const std::string &value) {
+  std::string quoted("\"");
+  for (char rawCharacter : value) {
+    const unsigned char character = static_cast<unsigned char>(rawCharacter);
     switch (character) {
-    case '\n':
-      quoted += "\\n";
-      break;
-    case '\r':
-      quoted += "\\r";
+    case '\b':
+      quoted += "\\b";
       break;
     case '\t':
       quoted += "\\t";
+      break;
+    case '\n':
+      quoted += "\\n";
+      break;
+    case '\f':
+      quoted += "\\f";
+      break;
+    case '\r':
+      quoted += "\\r";
       break;
     case '\\':
       quoted += "\\\\";
@@ -63,7 +91,7 @@ std::string quoteString(const std::string &value) {
       quoted += "\\\"";
       break;
     default:
-      quoted.push_back(character);
+      quoted.push_back(static_cast<char>(character));
       break;
     }
   }
@@ -72,7 +100,9 @@ std::string quoteString(const std::string &value) {
 }
 
 std::string formatString(const std::string &value) {
-  return requiresQuotes(value) ? quoteString(value) : value;
+  if (containsCharactersRequiringEscapes(value))
+    return quoteWithEscapedCharacters(value);
+  return requiresQuotes(value) ? quoteWithSingleQuotes(value) : value;
 }
 
 bool isEmptyContainer(const YamlValue &value) {
