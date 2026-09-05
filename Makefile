@@ -5,7 +5,7 @@ BUILD_TYPE ?= Debug
 JOBS ?= 2
 INSTALL_PREFIX ?= /usr/local
 
-.PHONY: help configure build test sanitizers examples run-examples format docs coverage install clean distclean
+.PHONY: help configure build test sanitizers examples run-examples format coverage install clean distclean
 
 help: ## Show the available commands
 	@awk 'BEGIN {FS = ":.*## "; print "Usage: make <command>\n"} /^[a-zA-Z_-]+:.*## / {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -40,12 +40,6 @@ run-examples: examples ## Run all usage examples
 
 format: configure ## Format source, tests, and examples
 	cmake --build $(BUILD_DIR) --target format
-
-docs: ## Generate Doxygen documentation
-	cmake -S . -B $(BUILD_DIR) \
-		-DYAMLPARSER_BUILD_TESTS=OFF \
-		-DYAMLPARSER_BUILD_DOCS=ON
-	cmake --build $(BUILD_DIR) --target docs
 
 coverage: ## Run tests and generate HTML and console coverage reports
 	cmake -S . -B build-coverage \

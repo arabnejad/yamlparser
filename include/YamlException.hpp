@@ -23,6 +23,10 @@ public:
 
   SyntaxException(const std::string &message, std::size_t lineNumber)
       : YamlException("YAML syntax error at line " + std::to_string(lineNumber) + ": " + message) {}
+
+  SyntaxException(const std::string &message, std::size_t lineNumber, std::size_t columnNumber)
+      : YamlException("YAML syntax error at line " + std::to_string(lineNumber) + ", column " +
+                      std::to_string(columnNumber) + ": " + message) {}
 };
 
 class TypeException : public YamlException {

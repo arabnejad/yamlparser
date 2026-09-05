@@ -1,43 +1,11 @@
+#include "YamlTestHelpers.hpp"
 #include "YamlParser.hpp"
 #include "YamlPrinter.hpp"
 
 #include <gtest/gtest.h>
 
 using namespace yamlparser;
-
-namespace {
-void expectSameValue(const YamlValue &expected, const YamlValue &actual) {
-  ASSERT_EQ(expected.type(), actual.type());
-  switch (expected.type()) {
-  case YamlValue::Type::Null:
-    return;
-  case YamlValue::Type::String:
-    EXPECT_EQ(expected.asString(), actual.asString());
-    return;
-  case YamlValue::Type::Double:
-    EXPECT_DOUBLE_EQ(expected.asDouble(), actual.asDouble());
-    return;
-  case YamlValue::Type::Integer:
-    EXPECT_EQ(expected.asInteger(), actual.asInteger());
-    return;
-  case YamlValue::Type::Boolean:
-    EXPECT_EQ(expected.asBoolean(), actual.asBoolean());
-    return;
-  case YamlValue::Type::Sequence: {
-    ASSERT_EQ(expected.asSequence().size(), actual.asSequence().size());
-    for (std::size_t index = 0; index < expected.asSequence().size(); ++index)
-      expectSameValue(expected.at(index), actual.at(index));
-    return;
-  }
-  case YamlValue::Type::Mapping: {
-    ASSERT_EQ(expected.asMapping().size(), actual.asMapping().size());
-    for (const auto &entry : expected.asMapping())
-      expectSameValue(entry.second, actual.at(entry.first));
-    return;
-  }
-  }
-}
-} // namespace
+using yamlparser::test::expectSameYamlValue;
 
 TEST(YamlPrinterTest, ProducesTwoSpaceBlockIndentation) {
   const YamlValue document(YamlMapping{{
@@ -80,13 +48,13 @@ TEST(YamlPrinterTest, RoundTripsEverySupportedValueWithoutChangingTypesOrValues)
 
   const std::string printed  = YamlPrinter::toString(original);
   const YamlValue   reparsed = YamlParser().parseText(printed);
-  expectSameValue(original, reparsed);
+  expectSameYamlValue(original, reparsed);
 }
 
 TEST(YamlPrinterTest, RoundTripsRootScalarsAndContainers) {
   const YamlParser parser;
 
-  expectSameValue(YamlValue("true"), parser.parseText(YamlPrinter::toString(YamlValue("true"))));
-  expectSameValue(YamlValue(YamlSequence()), parser.parseText(YamlPrinter::toString(YamlValue(YamlSequence()))));
-  expectSameValue(YamlValue(YamlMapping()), parser.parseText(YamlPrinter::toString(YamlValue(YamlMapping()))));
+  expectSameYamlValue(YamlValue("true"), parser.parseText(YamlPrinter::toString(YamlValue("true"))));
+  expectSameYamlValue(YamlValue(YamlSequence()), parser.parseText(YamlPrinter::toString(YamlValue(YamlSequence()))));
+  expectSameYamlValue(YamlValue(YamlMapping()), parser.parseText(YamlPrinter::toString(YamlValue(YamlMapping()))));
 }

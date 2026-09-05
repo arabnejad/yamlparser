@@ -8,13 +8,13 @@ A small, dependency-free YAML parser for C++14 configuration files.
 - YAML core-schema boolean spellings
 - Common double-quoted escapes: `\b`, `\t`, `\n`, `\f`, `\r`, `\"`, `\/`, and `\\`
 - Literal UTF-8 text
-- Block and inline sequences
+- Block and flow sequences and mappings
 - Nested sequences and mappings
 - Literal (`|`) and folded (`>`) block strings
 - Anchors, aliases, and mapping merge keys
 - Mapping, sequence, and scalar document roots
 - YAML printing with value-preserving parse/print round trips
-- Exceptions with line numbers for syntax errors
+- Syntax errors with line numbers and flow-token column numbers
 
 ## Build and test
 
@@ -28,7 +28,6 @@ make sanitizers
 make examples
 make run-examples
 make format
-make docs
 make coverage
 ```
 
@@ -53,7 +52,6 @@ The main CMake options are:
 | --- | --- | --- |
 | `YAMLPARSER_BUILD_TESTS` | On for the root project | Build tests |
 | `YAMLPARSER_BUILD_EXAMPLES` | Off | Build examples |
-| `YAMLPARSER_BUILD_DOCS` | Off | Enable the `docs` target |
 | `YAMLPARSER_ENABLE_COVERAGE` | Off | Enable gcovr coverage |
 | `YAMLPARSER_ENABLE_SANITIZERS` | Off | Enable ASan and UBSan |
 
@@ -90,6 +88,15 @@ const YamlParser parser;
 YamlValue fromText = parser.parseText("enabled: true\n");
 YamlValue fromStream = parser.parse(std::cin);
 ```
+
+Flow sequences and mappings can be nested in either direction:
+
+```yaml
+server: {host: localhost, ports: [8080, 8443]}
+workers: [{name: primary}, {name: backup}]
+```
+
+The printer emits these values in block style, so no formatting option is required to preserve their data or types.
 
 `YamlValue` stores one of seven types:
 
@@ -136,7 +143,7 @@ FetchContent_MakeAvailable(yamlparser)
 target_link_libraries(your_target PRIVATE yamlparser::yamlparser)
 ```
 
-Tests, examples, documentation, coverage, and sanitizers are disabled when the library is consumed as a dependency unless explicitly requested.
+Tests, examples, coverage, and sanitizers are disabled when the library is consumed as a dependency unless explicitly requested.
 
 ## Scope
 
@@ -149,7 +156,7 @@ Current limitations:
 - Double-quoted strings cannot span physical lines and do not support backslash line continuation. Use `|` or `>` block strings for multiline text.
 - Tags and directives are not interpreted.
 - Mapping keys must be scalar values; YAML complex keys are not supported.
-- Flow sequences such as `[one, two]` are supported, but the only supported flow mapping is the empty mapping `{}`.
+- A flow collection must open and close on the same physical line. Multiline flow sequences and mappings are not supported.
 - A stream may contain only one YAML document. The optional `---` and `...` markers are supported for that document.
 - A merge key may reference one mapping alias, such as `<<: *defaults`; merge lists such as `<<: [*first, *second]` are not supported.
 

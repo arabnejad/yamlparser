@@ -109,3 +109,12 @@ TEST(YamlParserFixtureTest, PreservesLiteralUtf8Text) {
   EXPECT_EQ(utf8Examples.at("status").asString(), u8"✓");
   EXPECT_EQ(utf8Examples.at("emoji").asString(), u8"😀");
 }
+
+TEST(YamlParserFixtureTest, ParsesNestedFlowCollections) {
+  const YamlValue document = parseFixture("12_flow_collections.yaml");
+
+  EXPECT_EQ(document.at("service").at("ports").at(1U).asInteger(), 8443);
+  EXPECT_EQ(document.at("service").at("logging").at("level").asString(), "info");
+  EXPECT_EQ(document.at("workers").at(0U).at("name").asString(), "primary");
+  EXPECT_FALSE(document.at("workers").at(1U).at("enabled").asBoolean());
+}

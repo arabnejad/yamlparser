@@ -9,13 +9,14 @@ endif()
 
 option(YAMLPARSER_BUILD_TESTS "Build the test suite" ${YAMLPARSER_IS_TOP_LEVEL})
 option(YAMLPARSER_BUILD_EXAMPLES "Build usage examples" OFF)
-option(YAMLPARSER_BUILD_DOCS "Build API documentation" OFF)
 option(YAMLPARSER_ENABLE_COVERAGE "Enable coverage instrumentation" OFF)
 option(YAMLPARSER_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
 add_library(yamlparser
+  src/YamlFlowParser.cpp
   src/YamlParser.cpp
   src/YamlPrinter.cpp
+  src/YamlScalarParser.cpp
   src/YamlValue.cpp
 )
 add_library(yamlparser::yamlparser ALIAS yamlparser)
@@ -61,19 +62,6 @@ endif()
 
 if(YAMLPARSER_ENABLE_COVERAGE)
   include(${CMAKE_CURRENT_SOURCE_DIR}/CodeCoverage.cmake)
-endif()
-
-if(YAMLPARSER_BUILD_DOCS)
-  find_package(Doxygen REQUIRED)
-  set(DOXYFILE_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
-  set(DOXYFILE_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
-  configure_file(${DOXYFILE_IN} ${DOXYFILE_OUT} @ONLY)
-  add_custom_target(docs
-    COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYFILE_OUT}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMENT "Generate API documentation"
-    VERBATIM
-  )
 endif()
 
 find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format)

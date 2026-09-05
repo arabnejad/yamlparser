@@ -1,0 +1,2 @@
+service: {host: localhost, ports: [8080, 8443], logging: {level: info}}
+workers: [{name: primary, enabled: true}, {name: backup, enabled: false}]
