@@ -1,0 +1,23 @@
+# The first mapping in a merge list has precedence over later mappings.
+primary_defaults: &primary_defaults
+  host: localhost
+  port: 8080
+  timeout: 30
+  log_level: info
+
+fallback_defaults: &fallback_defaults
+  host: 127.0.0.1
+  retries: 3
+  timeout: 60
+
+# Explicit values override merged values whether they appear before or after
+# the merge key.
+flow_style_service:
+  timeout: 10
+  <<: [*primary_defaults, *fallback_defaults]
+  log_level: debug
+
+block_style_service:
+  <<:
+    - *primary_defaults
+    - *fallback_defaults

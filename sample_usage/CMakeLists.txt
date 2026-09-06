@@ -5,6 +5,7 @@ set(YAMLPARSER_EXAMPLES
   basic_config
   complex_data
   data_types
+  merge_lists
   multiline_strings
   nested_arrays
   nested_maps

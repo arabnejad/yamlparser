@@ -289,12 +289,13 @@ private:
 //   value    := scalar | sequence | mapping | anchor value | alias
 //   sequence := '[' (value (',' value)*)? ']'
 //   mapping  := '{' (scalar ':' value? (',' scalar ':' value?)*)? '}'
+//   merge    := alias | '[' alias (',' alias)* ']'
 class FlowValueParser {
 public:
   // Creates a parser for an already-tokenized expression and shares the
-  // current document's anchors so `*name` can resolve `&name`.
-  FlowValueParser(std::vector<FlowToken> tokens, std::map<std::string, YamlValue> &anchors)
-      : m_tokens(std::move(tokens)), m_anchors(anchors) {}
+  // current document's anchor store so `*name` can resolve `&name`.
+  FlowValueParser(std::vector<FlowToken> tokens, DocumentAnchorStore &anchorStore)
+      : m_tokens(std::move(tokens)), m_anchorStore(anchorStore) {}
 
   // Parses the root value and rejects anything left after it.
   // For example, `[1, 2] extra` fails because `extra` is trailing content.
@@ -305,14 +306,23 @@ public:
     return parsedValue;
   }
 
+  // Parses a standalone merge value and rejects trailing tokens.
+  // For example, both `*defaults` and `[*primary, *fallback]` are accepted.
+  std::vector<AliasReference> parseMergeAliases() {
+    std::vector<AliasReference> aliases = parseMergeAliasValue();
+    if (currentToken().kind != FlowTokenKind::End)
+      throwSyntaxError("Unexpected content after merge value", currentToken());
+    return aliases;
+  }
+
 private:
-  std::vector<FlowToken>            m_tokens;
-  std::size_t                       m_nextTokenIndex = 0U;
-  std::map<std::string, YamlValue> &m_anchors;
+  std::vector<FlowToken> m_tokens;
+  std::size_t            m_currentTokenIndex = 0U;
+  DocumentAnchorStore   &m_anchorStore;
 
   // Returns the next token without consuming it.
   const FlowToken &currentToken() const {
-    return m_tokens[m_nextTokenIndex];
+    return m_tokens[m_currentTokenIndex];
   }
 
   // Consumes one required token or reports the supplied syntax error.
@@ -320,7 +330,7 @@ private:
   FlowToken consumeExpected(FlowTokenKind expectedKind, const std::string &errorMessage) {
     if (currentToken().kind != expectedKind)
       throwSyntaxError(errorMessage, currentToken());
-    return m_tokens[m_nextTokenIndex++];
+    return m_tokens[m_currentTokenIndex++];
   }
 
   // Consumes a token only when it has the requested kind.
@@ -329,7 +339,7 @@ private:
   bool consumeIfPresent(FlowTokenKind kind) {
     if (currentToken().kind != kind)
       return false;
-    ++m_nextTokenIndex;
+    ++m_currentTokenIndex;
     return true;
   }
 
@@ -370,7 +380,7 @@ private:
   YamlValue parseAnchoredValue() {
     const FlowToken anchor = consumeExpected(FlowTokenKind::Anchor, "Expected an anchor");
     YamlValue       value  = parseValue();
-    m_anchors[anchor.text] = value;
+    m_anchorStore.defineAnchor(anchor.text, value);
     return value;
   }
 
@@ -378,11 +388,8 @@ private:
   // For example, `*defaults` returns the value previously stored by
   // `&defaults`.
   YamlValue resolveAlias() {
-    const FlowToken alias         = consumeExpected(FlowTokenKind::Alias, "Expected an alias");
-    const auto      anchoredValue = m_anchors.find(alias.text);
-    if (anchoredValue == m_anchors.end())
-      throw KeyException("*" + alias.text);
-    return anchoredValue->second;
+    const FlowToken alias = consumeExpected(FlowTokenKind::Alias, "Expected an alias");
+    return m_anchorStore.resolveAlias(alias.text);
   }
 
   // Parses values between `[` and `]`, requiring commas between each item.
@@ -417,19 +424,46 @@ private:
     return key.text;
   }
 
-  // Adds one key/value pair, handling merge keys and duplicate explicit keys.
-  // For example, `<<: *defaults` copies missing entries from defaults.
-  void applyMappingEntry(const std::string &key, YamlValue value, YamlMapping &mapping,
-                         std::set<std::string> &explicitlyDefinedKeys, const FlowToken &keyToken) {
-    if (key == "<<") {
-      if (!value.isMapping())
-        throwSyntaxError("Merge value must be a mapping alias", keyToken);
-      for (const auto &entry : value.asMapping())
-        mapping.insert(entry);
-      return;
+  // Reads the alias at the current token and moves to the following token.
+  // Keeping the source position allows later validation errors to identify the
+  // exact alias that failed.
+  AliasReference consumeMergeAlias() {
+    if (currentToken().kind != FlowTokenKind::Alias)
+      throwSyntaxError("Merge list items must be aliases", currentToken());
+
+    const FlowToken alias = consumeExpected(FlowTokenKind::Alias, "Expected a merge alias");
+    return AliasReference{alias.text, alias.sourcePosition};
+  }
+
+  // Parses one alias or a bracketed list of aliases as a merge value.
+  // The returned order is preserved so the anchor store can apply YAML's
+  // earlier-alias precedence rule.
+  std::vector<AliasReference> parseMergeAliasValue() {
+    std::vector<AliasReference> aliases;
+    if (currentToken().kind == FlowTokenKind::Alias) {
+      aliases.push_back(consumeMergeAlias());
+      return aliases;
     }
 
-    if (!explicitlyDefinedKeys.insert(key).second)
+    if (!consumeIfPresent(FlowTokenKind::LeftBracket))
+      throwSyntaxError("Merge value must be an alias or a list of aliases", currentToken());
+    if (currentToken().kind == FlowTokenKind::RightBracket)
+      throwSyntaxError("Merge alias list cannot be empty", currentToken());
+
+    while (true) {
+      aliases.push_back(consumeMergeAlias());
+      if (consumeIfPresent(FlowTokenKind::RightBracket))
+        return aliases;
+      consumeExpected(FlowTokenKind::Comma, "Expected ',' or ']' after merge alias");
+      if (currentToken().kind == FlowTokenKind::RightBracket)
+        throwSyntaxError("Merge alias list contains an empty item", currentToken());
+    }
+  }
+
+  // Adds one ordinary key/value pair and rejects duplicate explicit keys.
+  void addExplicitMappingEntry(const std::string &key, YamlValue value, YamlMapping &mapping,
+                               std::set<std::string> &explicitKeys, const FlowToken &keyToken) {
+    if (!explicitKeys.insert(key).second)
       throwSyntaxError("Duplicate mapping key: '" + key + "'", keyToken);
     mapping[key] = std::move(value);
   }
@@ -440,7 +474,7 @@ private:
   YamlMapping parseMapping() {
     consumeExpected(FlowTokenKind::LeftBrace, "Expected '{'");
     YamlMapping           mapping;
-    std::set<std::string> explicitlyDefinedKeys;
+    std::set<std::string> explicitKeys;
     if (consumeIfPresent(FlowTokenKind::RightBrace))
       return mapping;
 
@@ -448,16 +482,22 @@ private:
       if (currentToken().kind == FlowTokenKind::Comma || currentToken().kind == FlowTokenKind::RightBrace)
         throwSyntaxError("Flow mapping contains an empty entry", currentToken());
 
-      const FlowToken   keyToken = currentToken();
-      const std::string key      = parseMappingKey();
+      const FlowToken   keyToken   = currentToken();
+      const bool        isMergeKey = keyToken.kind == FlowTokenKind::Scalar && keyToken.text == "<<";
+      const std::string key        = parseMappingKey();
       consumeExpected(FlowTokenKind::Colon, "Expected ':' after flow mapping key");
 
-      // As in block mappings, an omitted value is YAML null. A comma still
-      // separates this entry from the next one; a closing brace ends it.
-      YamlValue value;
-      if (currentToken().kind != FlowTokenKind::Comma && currentToken().kind != FlowTokenKind::RightBrace)
-        value = parseValue();
-      applyMappingEntry(key, std::move(value), mapping, explicitlyDefinedKeys, keyToken);
+      if (isMergeKey) {
+        const std::vector<AliasReference> aliases = parseMergeAliasValue();
+        m_anchorStore.mergeMappingsFromAliases(aliases, mapping);
+      } else {
+        // As in block mappings, an omitted value is YAML null. A comma still
+        // separates this entry from the next one; a closing brace ends it.
+        YamlValue value;
+        if (currentToken().kind != FlowTokenKind::Comma && currentToken().kind != FlowTokenKind::RightBrace)
+          value = parseValue();
+        addExplicitMappingEntry(key, std::move(value), mapping, explicitKeys, keyToken);
+      }
 
       if (consumeIfPresent(FlowTokenKind::RightBrace))
         return mapping;
@@ -471,9 +511,15 @@ private:
 } // namespace
 
 YamlValue parseFlowCollectionValue(const std::string &expression, SourcePosition sourcePosition,
-                                   std::map<std::string, YamlValue> &anchors) {
+                                   DocumentAnchorStore &anchorStore) {
   FlowCollectionTokenizer tokenizer(expression, sourcePosition);
-  return FlowValueParser(tokenizer.tokenize(), anchors).parse();
+  return FlowValueParser(tokenizer.tokenize(), anchorStore).parse();
+}
+
+std::vector<AliasReference> parseFlowMergeAliases(const std::string &expression, SourcePosition sourcePosition,
+                                                  DocumentAnchorStore &anchorStore) {
+  FlowCollectionTokenizer tokenizer(expression, sourcePosition);
+  return FlowValueParser(tokenizer.tokenize(), anchorStore).parseMergeAliases();
 }
 
 } // namespace internal

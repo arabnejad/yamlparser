@@ -13,6 +13,7 @@ option(YAMLPARSER_ENABLE_COVERAGE "Enable coverage instrumentation" OFF)
 option(YAMLPARSER_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
 add_library(yamlparser
+  src/YamlDocumentAnchorStore.cpp
   src/YamlFlowParser.cpp
   src/YamlParser.cpp
   src/YamlPrinter.cpp

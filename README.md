@@ -11,7 +11,8 @@ A small, dependency-free YAML parser for C++14 configuration files.
 - Block and flow sequences and mappings
 - Nested sequences and mappings
 - Literal (`|`) and folded (`>`) block strings
-- Anchors, aliases, and mapping merge keys
+- Anchors and aliases
+- Merge keys with one alias or a list of aliases
 - Mapping, sequence, and scalar document roots
 - YAML printing with value-preserving parse/print round trips
 - Syntax errors with line numbers and flow-token column numbers
@@ -98,6 +99,28 @@ workers: [{name: primary}, {name: backup}]
 
 The printer emits these values in block style, so no formatting option is required to preserve their data or types.
 
+Merge keys accept one mapping alias, a flow-style alias list, or a block-style
+alias list:
+
+```yaml
+combined:
+  <<: [*primary, *fallback]
+  local_setting: true
+
+another_combination:
+  <<:
+    - *primary
+    - *fallback
+```
+
+Explicit keys override merged keys. When aliases in a merge list contain the
+same key, the mapping named earlier in the list takes precedence.
+
+A complete runnable example is available in
+[`sample_usage/src/merge_lists.cpp`](sample_usage/src/merge_lists.cpp), with its
+input in
+[`sample_usage/yaml_files/merge_lists.yaml`](sample_usage/yaml_files/merge_lists.yaml).
+
 `YamlValue` stores one of seven types:
 
 ```cpp
@@ -158,7 +181,6 @@ Current limitations:
 - Mapping keys must be scalar values; YAML complex keys are not supported.
 - A flow collection must open and close on the same physical line. Multiline flow sequences and mappings are not supported.
 - A stream may contain only one YAML document. The optional `---` and `...` markers are supported for that document.
-- A merge key may reference one mapping alias, such as `<<: *defaults`; merge lists such as `<<: [*first, *second]` are not supported.
 
 Earlier versions also had problems with boolean spellings, merge keys followed by inline comments, nested block sequences, common escape processing, and distinguishing null values from empty strings. Those cases are supported and covered by the current test suite.
 

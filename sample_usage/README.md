@@ -17,6 +17,7 @@ Each program reads its corresponding file from `sample_usage/yaml_files` and dem
 | `nested_structures` | Nested mappings |
 | `arrays_sequences` | Sequences and mappings inside sequences |
 | `anchors_merge` | Anchors, aliases, and merge keys |
+| `merge_lists` | Flow-style and block-style merge lists with multiple aliases |
 | `nested_maps` | Recursive mapping traversal |
 | `multiline_strings` | Literal and folded strings |
 | `data_types` | Scalar type detection |

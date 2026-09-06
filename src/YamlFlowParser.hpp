@@ -1,10 +1,11 @@
 #pragma once
 
+#include "YamlDocumentAnchorStore.hpp"
 #include "YamlSourcePosition.hpp"
 #include "YamlValue.hpp"
 
-#include <map>
 #include <string>
+#include <vector>
 
 namespace yamlparser {
 namespace internal {
@@ -14,7 +15,12 @@ namespace internal {
 // sourcePosition identifies where the opening bracket or brace appears in the
 // YAML document so syntax errors can point to the right place.
 YamlValue parseFlowCollectionValue(const std::string &expression, SourcePosition sourcePosition,
-                                   std::map<std::string, YamlValue> &anchors);
+                                   DocumentAnchorStore &anchorStore);
+
+// Parses a complete single-line merge value and returns its alias references.
+// Both `*one` and `[*one, *two]` are accepted.
+std::vector<AliasReference> parseFlowMergeAliases(const std::string &expression, SourcePosition sourcePosition,
+                                                  DocumentAnchorStore &anchorStore);
 
 } // namespace internal
 } // namespace yamlparser

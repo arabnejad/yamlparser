@@ -1,4 +1,6 @@
 #include "YamlParser.hpp"
+
+#include "YamlDocumentAnchorStore.hpp"
 #include "YamlFlowParser.hpp"
 #include "YamlScalarParser.hpp"
 
@@ -12,6 +14,8 @@
 namespace yamlparser {
 namespace {
 
+using internal::AliasReference;
+using internal::DocumentAnchorStore;
 using internal::parsePlainScalarValue;
 using internal::parseQuotedScalar;
 using internal::SourcePosition;
@@ -150,9 +154,9 @@ public:
   }
 
 private:
-  std::vector<std::string>         m_lines;
-  std::size_t                      m_nextLineIndex = 0U;
-  std::map<std::string, YamlValue> m_anchors;
+  std::vector<std::string> m_lines;
+  std::size_t              m_nextLineIndex = 0U;
+  DocumentAnchorStore      m_anchorStore;
 
   bool atEnd() const noexcept {
     return m_nextLineIndex >= m_lines.size();
@@ -194,22 +198,22 @@ private:
 
   YamlMapping parseMapping(std::size_t expectedIndentation) {
     YamlMapping           mapping;
-    std::set<std::string> explicitlyDefinedKeys;
-    parseRemainingMappingEntries(expectedIndentation, mapping, explicitlyDefinedKeys);
+    std::set<std::string> explicitKeys;
+    parseRemainingMappingEntries(expectedIndentation, mapping, explicitKeys);
     return mapping;
   }
 
   YamlMapping parseMappingWithFirstEntry(const std::string &firstEntry, std::size_t mappingIndentation,
                                          SourcePosition firstEntryPosition) {
     YamlMapping           mapping;
-    std::set<std::string> explicitlyDefinedKeys;
-    parseMappingEntry(firstEntry, mappingIndentation, firstEntryPosition, mapping, explicitlyDefinedKeys);
-    parseRemainingMappingEntries(mappingIndentation, mapping, explicitlyDefinedKeys);
+    std::set<std::string> explicitKeys;
+    parseMappingEntry(firstEntry, mappingIndentation, firstEntryPosition, mapping, explicitKeys);
+    parseRemainingMappingEntries(mappingIndentation, mapping, explicitKeys);
     return mapping;
   }
 
   void parseRemainingMappingEntries(std::size_t expectedIndentation, YamlMapping &mapping,
-                                    std::set<std::string> &explicitlyDefinedKeys) {
+                                    std::set<std::string> &explicitKeys) {
     while (true) {
       skipIgnoredLines();
       if (atEnd())
@@ -228,12 +232,12 @@ private:
       const std::size_t lineNumber = currentLineNumber();
       ++m_nextLineIndex;
       parseMappingEntry(entry, expectedIndentation, SourcePosition{lineNumber, expectedIndentation + 1U}, mapping,
-                        explicitlyDefinedKeys);
+                        explicitKeys);
     }
   }
 
   void parseMappingEntry(const std::string &entry, std::size_t entryIndentation, SourcePosition entryPosition,
-                         YamlMapping &mapping, std::set<std::string> &explicitlyDefinedKeys) {
+                         YamlMapping &mapping, std::set<std::string> &explicitKeys) {
     const std::size_t separatorIndex = findBlockMappingSeparator(entry);
     if (separatorIndex == std::string::npos)
       throw SyntaxException("Expected a 'key: value' mapping entry", entryPosition.lineNumber,
@@ -243,6 +247,10 @@ private:
     if (rawKey.empty())
       throw SyntaxException("Mapping key cannot be empty", entryPosition.lineNumber, entryPosition.columnNumber);
 
+    // Only the plain `<<` spelling is YAML's merge key. Quoted spellings such
+    // as `"<<"` are ordinary string keys, even though they decode to the same
+    // text.
+    const bool        isMergeKey = rawKey == "<<";
     const std::string key =
         (rawKey.front() == '\'' || rawKey.front() == '"') ? parseQuotedScalar(rawKey, entryPosition) : rawKey;
     const std::string    textAfterSeparator = entry.substr(separatorIndex + 1U);
@@ -250,11 +258,12 @@ private:
         textAfterSeparator, SourcePosition{entryPosition.lineNumber, entryPosition.columnNumber + separatorIndex + 1U});
     const std::string valueText = removeInlineComment(textAfterSeparator);
 
-    if (key == "<<") {
-      mergeAnchoredMapping(valueText, mapping, valuePosition);
+    if (isMergeKey) {
+      const std::vector<AliasReference> aliases = parseMergeAliases(valueText, entryIndentation, valuePosition);
+      m_anchorStore.mergeMappingsFromAliases(aliases, mapping);
       return;
     }
-    if (!explicitlyDefinedKeys.insert(key).second)
+    if (!explicitKeys.insert(key).second)
       throw SyntaxException("Duplicate mapping key: '" + key + "'", entryPosition.lineNumber,
                             entryPosition.columnNumber);
 
@@ -359,7 +368,7 @@ private:
         SourcePosition{expressionPosition.lineNumber, expressionPosition.columnNumber + anchorNameEndIndex});
     const std::string anchoredText  = trimWhitespace(textAfterName);
     YamlValue         anchoredValue = parseValueOrIndentedBlock(anchoredText, parentIndentation, anchoredValuePosition);
-    m_anchors[anchorName]           = anchoredValue;
+    m_anchorStore.defineAnchor(anchorName, anchoredValue);
     return anchoredValue;
   }
 
@@ -368,20 +377,75 @@ private:
     if (aliasName.empty() || aliasName.find_first_of(" \t") != std::string::npos)
       throw SyntaxException("Invalid alias", aliasPosition.lineNumber, aliasPosition.columnNumber);
 
-    const auto anchor = m_anchors.find(aliasName);
-    if (anchor == m_anchors.end())
-      throw KeyException("*" + aliasName);
-    return anchor->second;
+    return m_anchorStore.resolveAlias(aliasName);
   }
 
-  void mergeAnchoredMapping(const std::string &aliasExpression, YamlMapping &targetMapping,
-                            SourcePosition aliasPosition) const {
-    const YamlValue source = resolveAlias(aliasExpression, aliasPosition);
-    if (!source.isMapping())
-      throw TypeException("Merge alias must refer to a mapping");
+  // Parses one item from a block merge list.
+  // For example, `*defaults` becomes a reference to the `defaults` anchor.
+  AliasReference parseBlockMergeAlias(const std::string &itemText, SourcePosition itemPosition) const {
+    if (itemText.empty() || itemText.front() != '*')
+      throw SyntaxException("Merge list items must be aliases", itemPosition.lineNumber, itemPosition.columnNumber);
 
-    for (const auto &entry : source.asMapping())
-      targetMapping.insert(entry);
+    const std::string aliasName = trimWhitespace(itemText.substr(1U));
+    if (aliasName.empty() || aliasName.find_first_of(" \t") != std::string::npos)
+      throw SyntaxException("Merge list items must contain one alias", itemPosition.lineNumber,
+                            itemPosition.columnNumber);
+    return AliasReference{aliasName, itemPosition};
+  }
+
+  // Parses an indented sequence used as a mapping merge value.
+  // For example, two `- *name` lines return two alias references in their
+  // source order.
+  std::vector<AliasReference> parseBlockMergeAliases(std::size_t parentIndentation, SourcePosition valuePosition) {
+    skipIgnoredLines();
+    if (atEnd() || indentationWidthOf(m_lines[m_nextLineIndex]) <= parentIndentation)
+      throw SyntaxException("Merge value must be an alias or a list of aliases", valuePosition.lineNumber,
+                            valuePosition.columnNumber);
+
+    const std::size_t           expectedItemIndentation = indentationWidthOf(m_lines[m_nextLineIndex]);
+    std::vector<AliasReference> aliases;
+
+    while (true) {
+      skipIgnoredLines();
+      if (atEnd())
+        break;
+
+      const std::size_t actualItemIndentation = indentationWidthOf(m_lines[m_nextLineIndex]);
+      if (actualItemIndentation < expectedItemIndentation)
+        break;
+      if (actualItemIndentation > expectedItemIndentation)
+        throw SyntaxException("Unexpected indentation in merge list", currentLineNumber());
+
+      const std::string itemContent = removeInlineComment(contentWithoutIndentation(m_lines[m_nextLineIndex]));
+      if (!isSequenceMarker(itemContent)) {
+        if (aliases.empty())
+          throw SyntaxException("Merge value must be a list of aliases", currentLineNumber(),
+                                actualItemIndentation + 1U);
+        break;
+      }
+
+      const std::size_t    lineNumber      = currentLineNumber();
+      const std::string    textAfterMarker = itemContent.substr(1U);
+      const SourcePosition itemPosition =
+          positionAfterLeadingWhitespace(textAfterMarker, SourcePosition{lineNumber, actualItemIndentation + 2U});
+      const std::string itemText = trimWhitespace(textAfterMarker);
+      ++m_nextLineIndex;
+
+      aliases.push_back(parseBlockMergeAlias(itemText, itemPosition));
+    }
+
+    return aliases;
+  }
+
+  // Parses either one alias on the same line, a flow-style list such as
+  // `[*one, *two]`, or an indented block list. Applying aliases is kept
+  // separate so every form uses the same validation and precedence rules.
+  std::vector<AliasReference> parseMergeAliases(const std::string &valueText, std::size_t parentIndentation,
+                                                SourcePosition valuePosition) {
+    const std::string mergeExpression = trimWhitespace(valueText);
+    if (mergeExpression.empty())
+      return parseBlockMergeAliases(parentIndentation, valuePosition);
+    return internal::parseFlowMergeAliases(mergeExpression, valuePosition, m_anchorStore);
   }
 
   YamlValue parseSingleLineValue(const std::string &value, SourcePosition valuePosition) {
@@ -390,7 +454,7 @@ private:
     if (value.front() == '\'' || value.front() == '"')
       return YamlValue(parseQuotedScalar(value, valuePosition));
     if (value.front() == '[' || value.front() == '{')
-      return internal::parseFlowCollectionValue(value, valuePosition, m_anchors);
+      return internal::parseFlowCollectionValue(value, valuePosition, m_anchorStore);
     return parsePlainScalarValue(value);
   }
 
